@@ -1,10 +1,10 @@
-﻿# Lesson 03 — EF Core CRUD (Advanced)
+﻿# Lesson 04 — EF Core Advanced Queries (Basic)
 
-**Level:** Advanced
+**Level:** Basic
 
 ## Goal
 
-Unit of Work pattern, optimistic concurrency (RowVersion), soft delete with global query filters, audit fields via SaveChanges override.
+Navigation properties, Include/ThenInclude, one-to-many (Customer to Accounts), filtered includes.
 
 ## Instructions
 
