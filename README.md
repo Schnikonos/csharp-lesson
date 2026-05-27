@@ -1,10 +1,10 @@
-﻿# Lesson 13 — Authentication and Authorization JWT (Basic)
+﻿# Lesson 13 — Authentication and Authorization JWT (Intermediate)
 
-**Level:** Basic
+**Level:** Intermediate
 
 ## Goal
 
-JWT bearer auth setup, [Authorize]/[AllowAnonymous], reading claims in controller, HttpContext.User.
+Role-based authorization, claim-based policies, IAuthorizationHandler + AuthorizationPolicy, token generation endpoint.
 
 ## Instructions
 
