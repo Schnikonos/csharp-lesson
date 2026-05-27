@@ -1,10 +1,10 @@
-﻿# Lesson 11 — Encoding and Encryption (Advanced)
+﻿# Lesson 12 — Unit Testing (Basic)
 
-**Level:** Advanced
+**Level:** Basic
 
 ## Goal
 
-ASP.NET Core Data Protection API (IDataProtectionProvider) — the Jasypt equivalent; key rotation, protecting tokens, asymmetric RSA signing.
+xUnit — [Fact], [Theory], [InlineData], Arrange/Act/Assert, naming conventions, testing AccountService in isolation.
 
 ## Instructions
 
