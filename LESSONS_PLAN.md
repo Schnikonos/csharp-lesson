@@ -8,6 +8,25 @@
 
 ---
 
+## Standing Instruction — When Building a Lesson
+
+> **Every lesson implementation MUST include a companion test project / test class** covering the concepts introduced in that lesson.
+> The test type should match the lesson topic:
+>
+> | Lesson topic | Expected test type |
+> |---|---|
+> | Service / domain logic | Unit test (xUnit + Moq) |
+> | Controller / endpoint | Integration test (`WebApplicationFactory`) |
+> | Middleware / filters | Integration test with custom `TestServer` |
+> | EF Core / repository | In-memory SQLite or TestContainers |
+> | Background services | Unit test with `CancellationTokenSource` |
+> | Encryption / encoding | Pure unit tests (no mocks needed) |
+>
+> Tests must be committed on the same branch as the lesson code.
+> This ensures every lesson also teaches the **unittest concept** most naturally associated with it.
+
+---
+
 ## Branch Convention
 
 ```
@@ -219,6 +238,21 @@ Each part-branch is created **off the previous part** (`a → b → c`), so `git
 
 ---
 
+### Lesson 16 — Multithreading & Concurrency
+**Branches:** `lesson/16-multithreading/a-basic` · `b-intermediate` · `c-advanced`
+
+| Part | Content |
+|------|--------|
+| **A - Basic** | `Thread`, `Task`, `Task.Run`; `async`/`await` deep dive (state machine, `ConfigureAwait`); `Task.WhenAll` / `Task.WhenAny`; `CancellationToken` patterns |
+| **B - Intermediate** | Thread-safety primitives: `lock`, `Monitor`, `Interlocked`, `SemaphoreSlim`; `ConcurrentDictionary` / `ConcurrentQueue`; `Parallel.ForEach` / `Parallel.For`; `ThreadLocal<T>` |
+| **C - Advanced** | `Channel<T>` for producer/consumer pipelines; `IAsyncEnumerable<T>` streaming; `ValueTask`; thread pool tuning; deadlock diagnosis; `Mutex` / `ReaderWriterLockSlim` for cross-process scenarios |
+
+**Java parallels:** `CompletableFuture` → `Task`; `synchronized` / `ReentrantLock` → `lock` / `SemaphoreSlim`; `ConcurrentHashMap` → `ConcurrentDictionary`; `ExecutorService` → `Task` + thread pool; `BlockingQueue` → `Channel<T>`.
+
+**Unit tests for this lesson:** `Task`-based unit tests using `async Task` test methods; testing cancellation with `CancellationTokenSource`; verifying thread-safe behaviour under concurrent load with `Parallel.For`.
+
+---
+
 ## How to Work Through a Lesson
 
 ```bash
@@ -242,5 +276,10 @@ For a Java/Spring Boot dev, the fastest path to productivity:
 3. **07** (error handling) — production hygiene
 4. **05** (LINQ) — the most C#-specific skill to master
 5. **06** (middleware) — maps closely to your Spring knowledge
-6. **12** (testing) — validate everything you've built
-7. Then the rest in any order
+6. **16** (multithreading) — `async`/`await` is everywhere in C#; learn it early
+7. **12** (testing) — validate everything you've built
+8. Then the rest in any order
+
+> **Already covered — no new lessons needed:**
+> - Logging → **Lesson 15** (log levels, Serilog sinks/file rotation/enrichers, OpenTelemetry)
+> - Caching → **Lesson 14** (IMemoryCache, Redis, output caching)
