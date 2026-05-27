@@ -1,10 +1,10 @@
-﻿# Lesson 06 — Middleware and Action Filters (Basic)
+﻿# Lesson 06 — Middleware and Action Filters (Intermediate)
 
-**Level:** Basic
+**Level:** Intermediate
 
 ## Goal
 
-Custom IMiddleware, request/response logging middleware, middleware ordering in Program.cs.
+IActionFilter/IAsyncActionFilter, adding correlation ID to HttpContext, enriching response headers, short-circuiting pipeline.
 
 ## Instructions
 
