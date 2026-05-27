@@ -1,10 +1,10 @@
-﻿# Lesson 13 — Authentication and Authorization JWT (Advanced)
+﻿# Lesson 14 — Caching (Basic)
 
-**Level:** Advanced
+**Level:** Basic
 
 ## Goal
 
-Refresh tokens, token revocation, IAuthorizationRequirement for resource-level checks, OAuth2/OpenID Connect with Keycloak overview.
+IMemoryCache — Set/Get/GetOrCreate, AbsoluteExpiration, SlidingExpiration, cache invalidation on write.
 
 ## Instructions
 
