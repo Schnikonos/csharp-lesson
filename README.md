@@ -1,10 +1,10 @@
-﻿# Lesson 14 — Caching (Basic)
+﻿# Lesson 14 — Caching (Intermediate)
 
-**Level:** Basic
+**Level:** Intermediate
 
 ## Goal
 
-IMemoryCache — Set/Get/GetOrCreate, AbsoluteExpiration, SlidingExpiration, cache invalidation on write.
+IDistributedCache interface, Redis with StackExchange.Redis, cache-aside pattern in service layer, serialization strategies.
 
 ## Instructions
 
