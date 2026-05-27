@@ -1,10 +1,10 @@
-﻿# Lesson 04 — EF Core Advanced Queries (Intermediate)
+﻿# Lesson 04 — EF Core Advanced Queries (Advanced)
 
-**Level:** Intermediate
+**Level:** Advanced
 
 ## Goal
 
-GroupBy aggregates, projections with Select into DTOs, Any/All/Count, pagination (Skip/Take).
+Raw SQL with FromSqlRaw/ExecuteSqlRaw, stored procedure calls, compiled queries, split queries.
 
 ## Instructions
 
