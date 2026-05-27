@@ -1,10 +1,10 @@
-﻿# Lesson 12 — Unit Testing (Intermediate)
+﻿# Lesson 12 — Unit Testing (Advanced)
 
-**Level:** Intermediate
+**Level:** Advanced
 
 ## Goal
 
-Moq — mocking IAccountRepository and IHttpClientFactory, Mock<T>/Setup/Verify, FluentAssertions for readable assertions.
+Integration tests with WebApplicationFactory<Program>, in-memory SQLite for EF Core tests, TestContainers intro, code coverage with Coverlet.
 
 ## Instructions
 
