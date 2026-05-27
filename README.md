@@ -1,10 +1,10 @@
-﻿# Lesson 09 — Scheduled Tasks (Basic)
+﻿# Lesson 09 — Scheduled Tasks (Intermediate)
 
-**Level:** Basic
+**Level:** Intermediate
 
 ## Goal
 
-IHostedService manual implementation, BackgroundService base class, PeriodicTimer (modern .NET), graceful shutdown with CancellationToken.
+Quartz.NET — IJob, ITrigger, cron expressions, scoped services inside background job, job concurrency control, ISchedulerFactory DI registration.
 
 ## Instructions
 
