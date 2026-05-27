@@ -1,13 +1,13 @@
-﻿# Lesson 01 — Endpoint + Service (Intermediate)
+﻿# Lesson 01 — Endpoint + Service (Advanced)
 
-**Level:** Intermediate
+**Level:** Advanced
 
 ```bash
 dotnet test Lesson.Tests/Lesson.Tests.csproj
 # 9 tests: 4 unit (ExchangeRateService) + 5 integration (AccountController)
 ```
 
-Typed HttpClient calling an external rate API, IHttpClientFactory, async/await, CancellationToken, IOptions<T> for base URL.
+Polly resilience (retry + circuit breaker), response caching, timeout policy, HttpClient best practices.
 
 1. Add `GET /exchangerate/{base}/{target}` — return a single rate, `404` if not found.
 2. Catch `TaskCanceledException` in the controller and return `504 Gateway Timeout`.
