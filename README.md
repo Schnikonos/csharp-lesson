@@ -1,10 +1,10 @@
-﻿# Lesson 04 — EF Core Advanced Queries (Basic)
+﻿# Lesson 04 — EF Core Advanced Queries (Intermediate)
 
-**Level:** Basic
+**Level:** Intermediate
 
 ## Goal
 
-Navigation properties, Include/ThenInclude, one-to-many (Customer to Accounts), filtered includes.
+GroupBy aggregates, projections with Select into DTOs, Any/All/Count, pagination (Skip/Take).
 
 ## Instructions
 
