@@ -1,10 +1,10 @@
-﻿# Lesson 09 — Scheduled Tasks (Intermediate)
+﻿# Lesson 10 — File Handling (Basic)
 
-**Level:** Intermediate
+**Level:** Basic
 
 ## Goal
 
-Quartz.NET — IJob, ITrigger, cron expressions, scoped services inside background job, job concurrency control, ISchedulerFactory DI registration.
+File/Directory static helpers, StreamReader/StreamWriter, using declarations, FileStream, reading and writing transaction exports as plain text.
 
 ## Instructions
 
