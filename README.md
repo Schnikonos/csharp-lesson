@@ -1,10 +1,10 @@
-﻿# Lesson 08 — Application Events and Pub/Sub (Basic)
+﻿# Lesson 08 — Application Events and Pub/Sub (Intermediate)
 
-**Level:** Basic
+**Level:** Intermediate
 
 ## Goal
 
-C# event keyword, delegates (Action, Func, EventHandler<T>), simple in-process publisher/subscriber.
+MediatR — INotification + INotificationHandler<T>, IRequest<T> + IRequestHandler<T>, decoupled domain events (AccountCreatedEvent).
 
 ## Instructions
 
