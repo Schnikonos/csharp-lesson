@@ -1,10 +1,10 @@
-﻿# Lesson 02 — Configuration (Basic)
+﻿# Lesson 02 — Configuration (Intermediate)
 
-**Level:** Basic
+**Level:** Intermediate
 
 ## Goal
 
-appsettings.json sections, reading with IConfiguration, environment-specific overrides (appsettings.Development.json).
+Strongly-typed config with IOptions<T>, IOptionsSnapshot<T>, IOptionsMonitor<T>; validation on startup.
 
 ## Instructions
 
