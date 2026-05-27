@@ -1,10 +1,10 @@
-﻿# Lesson 07 — Error Handling and Validation (Advanced)
+﻿# Lesson 08 — Application Events and Pub/Sub (Basic)
 
-**Level:** Advanced
+**Level:** Basic
 
 ## Goal
 
-Custom exception hierarchy (DomainException, NotFoundException), exception-to-HTTP mapping, validation pipeline with MediatR, structured error logging.
+C# event keyword, delegates (Action, Func, EventHandler<T>), simple in-process publisher/subscriber.
 
 ## Instructions
 
