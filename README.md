@@ -1,10 +1,10 @@
-﻿# Lesson 13 — Authentication and Authorization JWT (Intermediate)
+﻿# Lesson 13 — Authentication and Authorization JWT (Advanced)
 
-**Level:** Intermediate
+**Level:** Advanced
 
 ## Goal
 
-Role-based authorization, claim-based policies, IAuthorizationHandler + AuthorizationPolicy, token generation endpoint.
+Refresh tokens, token revocation, IAuthorizationRequirement for resource-level checks, OAuth2/OpenID Connect with Keycloak overview.
 
 ## Instructions
 
