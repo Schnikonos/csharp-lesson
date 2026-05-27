@@ -1,10 +1,10 @@
-﻿# Lesson 03 — EF Core CRUD (Intermediate)
+﻿# Lesson 03 — EF Core CRUD (Advanced)
 
-**Level:** Intermediate
+**Level:** Advanced
 
 ## Goal
 
-Repository pattern (IAccountRepository), async DB ops, IQueryable vs IEnumerable, value objects and owned entities.
+Unit of Work pattern, optimistic concurrency (RowVersion), soft delete with global query filters, audit fields via SaveChanges override.
 
 ## Instructions
 
