@@ -1,10 +1,10 @@
-﻿# Lesson 10 — File Handling (Basic)
+﻿# Lesson 10 — File Handling (Intermediate)
 
-**Level:** Basic
+**Level:** Intermediate
 
 ## Goal
 
-File/Directory static helpers, StreamReader/StreamWriter, using declarations, FileStream, reading and writing transaction exports as plain text.
+IFormFile upload endpoint (import transactions from CSV), CsvHelper library, System.Text.Json read/write, async file IO with await using.
 
 ## Instructions
 
