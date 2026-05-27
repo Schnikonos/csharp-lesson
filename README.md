@@ -1,10 +1,10 @@
-﻿# Lesson 15 — Structured Logging and Observability (Basic)
+﻿# Lesson 15 — Structured Logging and Observability (Intermediate)
 
-**Level:** Basic
+**Level:** Intermediate
 
 ## Goal
 
-Built-in ILogger<T>, log levels, structured logging with message templates ({AccountId}), logging in middleware and services.
+Serilog — sinks (console, file, seq), enrichers, correlation ID propagation via IHttpContextAccessor, log scopes.
 
 ## Instructions
 
