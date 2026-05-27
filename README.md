@@ -1,10 +1,10 @@
-﻿# Lesson 16 - Multithreading and Concurrency (Basic)
+﻿# Lesson 16 - Multithreading and Concurrency (Intermediate)
 
-**Level:** Basic
+**Level:** Intermediate
 
 ## Goal
 
-Thread, Task, Task.Run, async/await deep dive, ConfigureAwait, Task.WhenAll/WhenAny, CancellationToken patterns.
+Thread-safety primitives: lock, Monitor, Interlocked, SemaphoreSlim, ConcurrentDictionary/Queue, Parallel.ForEach/For, ThreadLocal<T>.
 
 ## Instructions
 
