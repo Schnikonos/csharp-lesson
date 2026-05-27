@@ -1,10 +1,10 @@
-﻿# Lesson 05 — LINQ (Intermediate)
+﻿# Lesson 05 — LINQ (Advanced)
 
-**Level:** Intermediate
+**Level:** Advanced
 
 ## Goal
 
-IEnumerable<T> vs IQueryable<T>, GroupBy/Join/SelectMany, chaining, let clause, anonymous types.
+Custom LINQ extension methods, Aggregate/Zip/Chunk, PLINQ basics, expression trees intro, IAsyncEnumerable<T> for streaming.
 
 ## Instructions
 
