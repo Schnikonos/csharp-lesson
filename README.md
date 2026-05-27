@@ -1,10 +1,10 @@
-﻿# Lesson 06 — Middleware and Action Filters (Intermediate)
+﻿# Lesson 06 — Middleware and Action Filters (Advanced)
 
-**Level:** Intermediate
+**Level:** Advanced
 
 ## Goal
 
-IActionFilter/IAsyncActionFilter, adding correlation ID to HttpContext, enriching response headers, short-circuiting pipeline.
+IResourceFilter, IResultFilter, endpoint-scoped filters via [ServiceFilter], IEndpointFilter, custom IAuthorizationHandler.
 
 ## Instructions
 
