@@ -1,10 +1,10 @@
-﻿# Lesson 12 — Unit Testing (Basic)
+﻿# Lesson 12 — Unit Testing (Intermediate)
 
-**Level:** Basic
+**Level:** Intermediate
 
 ## Goal
 
-xUnit — [Fact], [Theory], [InlineData], Arrange/Act/Assert, naming conventions, testing AccountService in isolation.
+Moq — mocking IAccountRepository and IHttpClientFactory, Mock<T>/Setup/Verify, FluentAssertions for readable assertions.
 
 ## Instructions
 
