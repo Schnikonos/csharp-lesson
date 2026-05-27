@@ -1,10 +1,10 @@
-﻿# Lesson 02 — Configuration (Intermediate)
+﻿# Lesson 02 — Configuration (Advanced)
 
-**Level:** Intermediate
+**Level:** Advanced
 
 ## Goal
 
-Strongly-typed config with IOptions<T>, IOptionsSnapshot<T>, IOptionsMonitor<T>; validation on startup.
+User Secrets, environment variables, Azure Key Vault integration pattern, custom IConfigurationProvider.
 
 ## Instructions
 
