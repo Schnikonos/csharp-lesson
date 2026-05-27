@@ -1,10 +1,10 @@
-﻿# Lesson 14 — Caching (Intermediate)
+﻿# Lesson 14 — Caching (Advanced)
 
-**Level:** Intermediate
+**Level:** Advanced
 
 ## Goal
 
-IDistributedCache interface, Redis with StackExchange.Redis, cache-aside pattern in service layer, serialization strategies.
+Response caching middleware ([ResponseCache]), output caching (.NET 7+), cache stampede prevention, cache warming on startup.
 
 ## Instructions
 
