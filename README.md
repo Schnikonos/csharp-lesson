@@ -1,10 +1,10 @@
-﻿# Lesson 07 — Error Handling and Validation (Basic)
+﻿# Lesson 07 — Error Handling and Validation (Intermediate)
 
-**Level:** Basic
+**Level:** Intermediate
 
 ## Goal
 
-try/catch in controllers, IActionResult error responses, ModelState validation, Data Annotations ([Required], [Range]).
+Global exception handler with IExceptionHandler (.NET 8+), ProblemDetails (RFC 7807), FluentValidation integration.
 
 ## Instructions
 
