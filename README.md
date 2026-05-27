@@ -1,10 +1,10 @@
-﻿# Lesson 11 — Encoding and Encryption (Basic)
+﻿# Lesson 11 — Encoding and Encryption (Intermediate)
 
-**Level:** Basic
+**Level:** Intermediate
 
 ## Goal
 
-Base64 encode/decode, SHA256/HMACSHA256 hashing, password hashing with BCrypt.Net.
+Symmetric encryption with AES (Aes.Create()), IV and key management, encrypting sensitive config values at rest.
 
 ## Instructions
 
