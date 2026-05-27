@@ -1,10 +1,10 @@
-﻿# Lesson 05 — LINQ (Advanced)
+﻿# Lesson 06 — Middleware and Action Filters (Basic)
 
-**Level:** Advanced
+**Level:** Basic
 
 ## Goal
 
-Custom LINQ extension methods, Aggregate/Zip/Chunk, PLINQ basics, expression trees intro, IAsyncEnumerable<T> for streaming.
+Custom IMiddleware, request/response logging middleware, middleware ordering in Program.cs.
 
 ## Instructions
 
