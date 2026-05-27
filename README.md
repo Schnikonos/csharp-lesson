@@ -1,10 +1,10 @@
-﻿# Lesson 16 - Multithreading and Concurrency (Intermediate)
+﻿# Lesson 16 - Multithreading and Concurrency (Advanced)
 
-**Level:** Intermediate
+**Level:** Advanced
 
 ## Goal
 
-Thread-safety primitives: lock, Monitor, Interlocked, SemaphoreSlim, ConcurrentDictionary/Queue, Parallel.ForEach/For, ThreadLocal<T>.
+Channel<T> producer/consumer pipelines, IAsyncEnumerable<T> streaming, ValueTask, thread pool tuning, deadlock diagnosis, Mutex/ReaderWriterLockSlim.
 
 ## Instructions
 
@@ -12,5 +12,4 @@ Thread-safety primitives: lock, Monitor, Interlocked, SemaphoreSlim, ConcurrentD
 2. Run the project and test the endpoints.
 3. Run the tests: dotnet test
 4. Experiment and extend.
-5. When ready, move to the next part branch.
 
