@@ -1,10 +1,10 @@
-﻿# Lesson 07 — Error Handling and Validation (Intermediate)
+﻿# Lesson 07 — Error Handling and Validation (Advanced)
 
-**Level:** Intermediate
+**Level:** Advanced
 
 ## Goal
 
-Global exception handler with IExceptionHandler (.NET 8+), ProblemDetails (RFC 7807), FluentValidation integration.
+Custom exception hierarchy (DomainException, NotFoundException), exception-to-HTTP mapping, validation pipeline with MediatR, structured error logging.
 
 ## Instructions
 
