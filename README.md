@@ -1,10 +1,10 @@
-﻿# Lesson 05 — LINQ (Basic)
+﻿# Lesson 05 — LINQ (Intermediate)
 
-**Level:** Basic
+**Level:** Intermediate
 
 ## Goal
 
-Method syntax vs query syntax, Where/Select/OrderBy/FirstOrDefault/ToList, deferred execution explained.
+IEnumerable<T> vs IQueryable<T>, GroupBy/Join/SelectMany, chaining, let clause, anonymous types.
 
 ## Instructions
 
