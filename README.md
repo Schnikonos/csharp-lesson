@@ -1,10 +1,10 @@
-﻿# Lesson 03 — EF Core CRUD (Basic)
+﻿# Lesson 03 — EF Core CRUD (Intermediate)
 
-**Level:** Basic
+**Level:** Intermediate
 
 ## Goal
 
-DbContext + DbSet<T>, SQLite setup, code-first migrations, basic CRUD (Add, Find, Update, Remove, SaveChangesAsync).
+Repository pattern (IAccountRepository), async DB ops, IQueryable vs IEnumerable, value objects and owned entities.
 
 ## Instructions
 
