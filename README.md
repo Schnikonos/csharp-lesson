@@ -1,10 +1,10 @@
-﻿# Lesson 08 — Application Events and Pub/Sub (Intermediate)
+﻿# Lesson 08 — Application Events and Pub/Sub (Advanced)
 
-**Level:** Intermediate
+**Level:** Advanced
 
 ## Goal
 
-MediatR — INotification + INotificationHandler<T>, IRequest<T> + IRequestHandler<T>, decoupled domain events (AccountCreatedEvent).
+IHostedService as event consumer, Channel<T> for async in-process messaging, outbox pattern intro, comparison with MassTransit.
 
 ## Instructions
 
