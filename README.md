@@ -1,10 +1,10 @@
-﻿# Lesson 14 — Caching (Advanced)
+﻿# Lesson 15 — Structured Logging and Observability (Basic)
 
-**Level:** Advanced
+**Level:** Basic
 
 ## Goal
 
-Response caching middleware ([ResponseCache]), output caching (.NET 7+), cache stampede prevention, cache warming on startup.
+Built-in ILogger<T>, log levels, structured logging with message templates ({AccountId}), logging in middleware and services.
 
 ## Instructions
 
