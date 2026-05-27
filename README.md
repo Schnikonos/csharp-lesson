@@ -1,10 +1,10 @@
-﻿# Lesson 11 — Encoding and Encryption (Intermediate)
+﻿# Lesson 11 — Encoding and Encryption (Advanced)
 
-**Level:** Intermediate
+**Level:** Advanced
 
 ## Goal
 
-Symmetric encryption with AES (Aes.Create()), IV and key management, encrypting sensitive config values at rest.
+ASP.NET Core Data Protection API (IDataProtectionProvider) — the Jasypt equivalent; key rotation, protecting tokens, asymmetric RSA signing.
 
 ## Instructions
 
