@@ -1,10 +1,10 @@
-﻿# Lesson 15 — Structured Logging and Observability (Intermediate)
+﻿# Lesson 15 — Structured Logging and Observability (Advanced)
 
-**Level:** Intermediate
+**Level:** Advanced
 
 ## Goal
 
-Serilog — sinks (console, file, seq), enrichers, correlation ID propagation via IHttpContextAccessor, log scopes.
+OpenTelemetry — traces, metrics, logs; ActivitySource; exporting to Jaeger/Zipkin; health checks (IHealthCheck, /health endpoint).
 
 ## Instructions
 
