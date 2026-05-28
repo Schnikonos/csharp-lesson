@@ -1,3 +1,4 @@
+using Lesson.Config;
 using Lesson.Services;
 
 // -----------------------------------------------------------------------------
@@ -18,21 +19,41 @@ using Lesson.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // --- Service Registration (DI Container) -------------------------------------
-// Java parallel: @Bean methods in @Configuration class, or @ComponentScan
-//
-// DI lifetime recap:
-//   AddSingleton  → one instance for the entire app lifetime
-//   AddScoped     → one instance per HTTP request  ← most common for services
-//   AddTransient  → new instance every time resolved
-//
-// AccountService holds in-memory state, so Singleton is appropriate here.
-// In Lesson 03 (EF Core) we switch to Scoped because DbContext is Scoped.
+
+// AccountService holds in-memory state → Singleton (one instance for app lifetime).
 builder.Services.AddSingleton<IAccountService, AccountService>();
+
+// -----------------------------------------------------------------------------
+// OPTIONS PATTERN — Strongly-typed configuration
+//
+// Configure<T> binds the named JSON section from appsettings.json to the POCO.
+// Once registered, IOptions<ExchangeRateOptions> can be injected anywhere.
+//
+// Java parallel:
+//   @EnableConfigurationProperties(ExchangeRateProperties.class)
+//   + @ConfigurationProperties(prefix = "exchange-rate")
+//   → builder.Services.Configure<ExchangeRateOptions>(...)
+// -----------------------------------------------------------------------------
+builder.Services.Configure<ExchangeRateOptions>(
+    builder.Configuration.GetSection(ExchangeRateOptions.SectionName));
+
+// -----------------------------------------------------------------------------
+// TYPED HTTP CLIENT REGISTRATION
+//
+// AddHttpClient<TClient, TImplementation>() does three things:
+//   1. Registers ExchangeRateService in the DI container (Transient by default)
+//   2. Creates a managed HttpClient via IHttpClientFactory and injects it
+//   3. Handles HttpMessageHandler lifetime & pooling — no socket exhaustion
+//
+// Java parallel:
+//   @Bean WebClient myWebClient(WebClient.Builder builder) { ... }
+//   → builder.Services.AddHttpClient<IExchangeRateService, ExchangeRateService>()
+// -----------------------------------------------------------------------------
+builder.Services.AddHttpClient<IExchangeRateService, ExchangeRateService>();
 
 builder.Services.AddControllers();
 
 // OpenAPI / Swagger — accessible at /openapi/v1.json in development
-// The Scalar UI (replacement for Swagger UI in .NET 9+) is auto-mapped below.
 builder.Services.AddOpenApi();
 
 // --- Middleware Pipeline ------------------------------------------------------
@@ -40,7 +61,6 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
-    // Serves the OpenAPI JSON document and the interactive Scalar UI at /scalar
     app.MapOpenApi();
 }
 

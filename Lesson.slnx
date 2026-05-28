@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".gitignore" />
+    <File Path="LESSONS_PLAN.md" />
+    <File Path="README.md" />
+  </Folder>
+  <Project Path="Lesson.Tests/Lesson.Tests.csproj" />
+  <Project Path="Lesson/Lesson.csproj" />
+</Solution>
