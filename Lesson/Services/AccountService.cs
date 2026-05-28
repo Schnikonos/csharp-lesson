@@ -1,5 +1,6 @@
 using Lesson.DTOs;
 using Lesson.Models;
+using System.Collections.Concurrent;
 
 namespace Lesson.Services;
 
@@ -22,7 +23,9 @@ public class AccountService : IAccountService
 {
     // Dictionary<TKey, TValue> is the C# equivalent of Java's HashMap<K, V>.
     // Using a private readonly field ensures it cannot be reassigned after construction.
-    private readonly Dictionary<Guid, Account> _accounts = new();
+    // ConcurrentDictionary is thread-safe for all individual operations.
+    // Java parallel: ConcurrentHashMap<UUID, Account>
+    private readonly ConcurrentDictionary<Guid, Account> _accounts = new();
 
     public AccountService()
     {
@@ -69,7 +72,8 @@ public class AccountService : IAccountService
             Currency: request.Currency
         );
 
-        _accounts[account.Id] = account;
+        // TryAdd is atomic — safe under concurrent POST requests
+        _accounts.TryAdd(account.Id, account);
         return ToResponse(account);
     }
 
