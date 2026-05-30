@@ -1,8 +1,10 @@
+using Lesson.Controllers;
 using Lesson.Entities;
 
 namespace Lesson.Repositories;
 
 /// <summary>
+/// Lesson 04-B — adds pagination, projection, aggregate, and predicate query methods.
 /// Lesson 03-C — adds GetDeletedAsync / SoftDeleteAsync / RestoreAsync.
 /// Lesson 03-B — Repository pattern.
 ///
@@ -42,4 +44,29 @@ public interface IAccountRepository
     /// Requires bypassing the global query filter to find the row first.
     /// </summary>
     Task RestoreAsync(BankAccount account);
+
+    // ── Lesson 04-B ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns a paginated page of accounts as lightweight summary projections.
+    /// Uses Select() to build the DTO in SQL — no full entity loaded.
+    /// Java parallel: Pageable + Page&lt;T&gt; returned by a JPA repository.
+    /// </summary>
+    Task<PagedResult<AccountSummaryDto>> GetPagedSummariesAsync(int page, int pageSize);
+
+    /// <summary>
+    /// Returns per-account-type aggregates: count, total balance, average balance.
+    /// Uses GroupBy().Select() translated to SQL GROUP BY.
+    /// Java parallel: @Query("SELECT a.accountType, COUNT(a), SUM(a.balance) FROM ...")
+    /// </summary>
+    Task<IReadOnlyList<AccountTypeStatDto>> GetStatsByTypeAsync();
+
+    /// <summary>Returns true if any active (non-deleted) account has a balance above the threshold.</summary>
+    Task<bool> AnyWithBalanceAboveAsync(decimal threshold);
+
+    /// <summary>Returns true when ALL active accounts have a positive balance.</summary>
+    Task<bool> AllPositiveBalanceAsync();
+
+    /// <summary>Returns the count of active accounts, optionally filtered by type.</summary>
+    Task<int> CountActiveAsync(string? accountType = null);
 }

@@ -42,3 +42,46 @@ public record AccountResponse(
     string?      UpdatedBy,
     AddressDto?  Address
 );
+
+// ── Lesson 04-B DTOs ──────────────────────────────────────────────────────────
+
+/// <summary>
+/// Lightweight projection — only the columns needed for a list view.
+/// Using Select() to build this in SQL avoids fetching audit, RowVersion, Address columns.
+/// Java parallel: a DTO interface projection or @SqlResultSetMapping in JPA.
+/// </summary>
+public record AccountSummaryDto(
+    int     Id,
+    string  AccountNumber,
+    string  OwnerName,
+    string  AccountType,
+    decimal Balance,
+    bool    IsActive
+);
+
+/// <summary>
+/// Result of a GroupBy aggregate query: per-account-type statistics.
+/// Java parallel: a custom JPQL result class / DTO projection constructor expression.
+/// </summary>
+public record AccountTypeStatDto(
+    string  AccountType,
+    int     Count,
+    decimal TotalBalance,
+    double  AverageBalance
+);
+
+/// <summary>
+/// Generic pagination envelope.
+/// Java parallel: Spring Data's Page&lt;T&gt; interface.
+/// </summary>
+public record PagedResult<T>(
+    IReadOnlyList<T> Items,
+    int              TotalCount,
+    int              Page,
+    int              PageSize
+)
+{
+    public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize);
+    public bool HasNextPage => Page < TotalPages;
+    public bool HasPreviousPage => Page > 1;
+};

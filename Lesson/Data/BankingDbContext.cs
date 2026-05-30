@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 namespace Lesson.Data;
 
 /// <summary>
+/// Lesson 04-B — adds DbSet&lt;Transaction&gt; and seeds transactions for aggregate demos.
 /// Lesson 04-A — adds DbSet&lt;Customer&gt; and configures the one-to-many relationship.
 /// Lesson 03-C — global query filter (soft delete) + SaveChangesAsync audit override.
 /// Lesson 03-B — OwnsOne&lt;Address&gt; configuration.
@@ -20,6 +21,12 @@ public class BankingDbContext(DbContextOptions<BankingDbContext> options) : DbCo
     /// </summary>
     public DbSet<Customer> Customers => Set<Customer>();
 
+    /// <summary>
+    /// Lesson 04-B — DbSet for the Transaction entity.
+    /// Java parallel: JpaRepository&lt;Transaction, Integer&gt;
+    /// </summary>
+    public DbSet<Transaction> Transactions => Set<Transaction>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -31,6 +38,11 @@ public class BankingDbContext(DbContextOptions<BankingDbContext> options) : DbCo
         // ── Soft delete: global query filter ─────────────────────────────────
         modelBuilder.Entity<BankAccount>()
             .HasQueryFilter(a => !a.IsDeleted);
+
+        // Match the soft-delete filter on transactions so EF Core does not warn about
+        // a filtered required-end relationship (transactions of deleted accounts are hidden).
+        modelBuilder.Entity<Transaction>()
+            .HasQueryFilter(t => !t.BankAccount.IsDeleted);
 
         // ── One-to-many: Customer → BankAccounts ─────────────────────────────
         // HasMany / WithOne configures the relationship.
@@ -46,6 +58,14 @@ public class BankingDbContext(DbContextOptions<BankingDbContext> options) : DbCo
             .HasForeignKey(a => a.CustomerId)
             .IsRequired(false)
             .OnDelete(DeleteBehavior.SetNull);
+
+        // ── One-to-many: BankAccount → Transactions ──────────────────────────
+        // Java parallel: @OneToMany(mappedBy = "bankAccount") on BankAccount.transactions
+        modelBuilder.Entity<BankAccount>()
+            .HasMany(a => a.Transactions)
+            .WithOne(t => t.BankAccount)
+            .HasForeignKey(t => t.BankAccountId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         // Owned entity
         modelBuilder.Entity<BankAccount>()
@@ -81,6 +101,14 @@ public class BankingDbContext(DbContextOptions<BankingDbContext> options) : DbCo
                 CustomerId = 2,
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
             }
+        );
+        // Seed transactions (linked to seeded accounts)
+        modelBuilder.Entity<Transaction>().HasData(
+            new Transaction { Id = 1, BankAccountId = 1, Type = "Credit", Amount = 5_000m,  Description = "Salary",          OccurredAt = new DateTime(2024, 1, 5,  0, 0, 0, DateTimeKind.Utc) },
+            new Transaction { Id = 2, BankAccountId = 1, Type = "Debit",  Amount = 1_200m,  Description = "Rent",            OccurredAt = new DateTime(2024, 1, 10, 0, 0, 0, DateTimeKind.Utc) },
+            new Transaction { Id = 3, BankAccountId = 1, Type = "Debit",  Amount =   300m,  Description = "Groceries",       OccurredAt = new DateTime(2024, 1, 15, 0, 0, 0, DateTimeKind.Utc) },
+            new Transaction { Id = 4, BankAccountId = 2, Type = "Credit", Amount = 10_000m, Description = "Bonus",           OccurredAt = new DateTime(2024, 1, 3,  0, 0, 0, DateTimeKind.Utc) },
+            new Transaction { Id = 5, BankAccountId = 2, Type = "Debit",  Amount = 2_500m,  Description = "Car payment",     OccurredAt = new DateTime(2024, 1, 8,  0, 0, 0, DateTimeKind.Utc) }
         );
     }
 

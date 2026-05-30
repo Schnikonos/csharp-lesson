@@ -72,4 +72,9 @@ public class BankAccount
     // Java parallel: @ManyToOne @JoinColumn(name = "customer_id") private Customer customer;
     public int? CustomerId { get; set; }
     public Customer? Customer { get; set; }
+
+    // ── One-to-many navigation ────────────────────────────────────────────────
+    // Lesson 04-B — an account can have many transactions.
+    // Java parallel: @OneToMany(mappedBy = "bankAccount") private List<Transaction> transactions;
+    public ICollection<Transaction> Transactions { get; set; } = [];
 }

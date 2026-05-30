@@ -6,19 +6,16 @@ using Microsoft.EntityFrameworkCore;
 namespace Lesson.Controllers;
 
 /// <summary>
+/// Lesson 04-B — adds pagination, projection, GroupBy aggregate, and Any/All/Count endpoints.
 /// Lesson 03-C — uses IUnitOfWork; soft delete + restore; optimistic concurrency.
 /// Lesson 03-B — IAccountRepository; IQueryable filter; owned Address.
 ///
-/// New endpoints vs 03-B:
-///   GET  /accounts/deleted          — list soft-deleted accounts
-///   POST /accounts/{id}/restore     — restore a soft-deleted account
-///   DELETE /accounts/{id}           — soft delete (sets IsDeleted = true)
-///
-/// Optimistic concurrency:
-///   If two requests modify the same row simultaneously, the second one gets a
-///   DbUpdateConcurrencyException because the RowVersion no longer matches.
-///   We catch it and return HTTP 409 Conflict — the client must reload and retry.
-///   Java parallel: ObjectOptimisticLockingFailureException from Spring Data JPA.
+/// New endpoints (04-B):
+///   GET  /accounts/summary?page=&amp;pageSize=   — paginated lightweight projection
+///   GET  /accounts/stats                    — GroupBy aggregate per account type
+///   GET  /accounts/any-high-balance         — Any() predicate
+///   GET  /accounts/all-positive             — All() predicate
+///   GET  /accounts/count?type=              — Count() with optional filter
 /// </summary>
 [ApiController]
 [Route("accounts")]
@@ -134,6 +131,59 @@ public class AccountsController(IUnitOfWork uow) : ControllerBase
 
         return Ok(ToResponse(account));
     }
+
+    // ── Lesson 04-B endpoints ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// Paginated projection: only lightweight columns are SELECTed from the DB.
+    /// Uses Skip()/Take() for OFFSET/LIMIT and Select() to build the DTO in SQL.
+    /// Java parallel: Page&lt;AccountSummaryDto&gt; = repo.findAll(PageRequest.of(page-1, pageSize))
+    /// </summary>
+    [HttpGet("summary")]
+    public async Task<ActionResult<PagedResult<AccountSummaryDto>>> GetSummaries(
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+    {
+        if (page < 1 || pageSize < 1 || pageSize > 100)
+            return BadRequest("page must be >= 1; pageSize must be between 1 and 100.");
+
+        var result = await uow.Accounts.GetPagedSummariesAsync(page, pageSize);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// GroupBy aggregate: SQL GROUP BY AccountType with COUNT / SUM / AVG.
+    /// Java parallel: @Query("SELECT a.accountType, COUNT(a), SUM(a.balance) FROM ...")
+    /// </summary>
+    [HttpGet("stats")]
+    public async Task<ActionResult<IEnumerable<AccountTypeStatDto>>> GetStats()
+    {
+        var stats = await uow.Accounts.GetStatsByTypeAsync();
+        return Ok(stats);
+    }
+
+    /// <summary>
+    /// Any() — returns HTTP 200 with true/false.
+    /// Translates to SQL EXISTS — no rows are fetched.
+    /// </summary>
+    [HttpGet("any-high-balance")]
+    public async Task<ActionResult<bool>> AnyHighBalance([FromQuery] decimal threshold = 10_000m)
+        => Ok(await uow.Accounts.AnyWithBalanceAboveAsync(threshold));
+
+    /// <summary>
+    /// All() — translates to NOT EXISTS (... WHERE NOT condition).
+    /// Returns true only when every active account has Balance > 0.
+    /// </summary>
+    [HttpGet("all-positive")]
+    public async Task<ActionResult<bool>> AllPositive()
+        => Ok(await uow.Accounts.AllPositiveBalanceAsync());
+
+    /// <summary>
+    /// Count() — SQL COUNT(*) with optional WHERE type filter.
+    /// Java parallel: repo.countByAccountType(type) or countByIsDeletedFalse()
+    /// </summary>
+    [HttpGet("count")]
+    public async Task<ActionResult<int>> CountActive([FromQuery] string? type = null)
+        => Ok(await uow.Accounts.CountActiveAsync(type));
 
     // ── Mapping helpers ───────────────────────────────────────────────────────
     private static AccountResponse ToResponse(BankAccount a) => new(
