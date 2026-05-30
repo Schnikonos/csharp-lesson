@@ -26,11 +26,14 @@
 
 using Lesson.Configuration;
 using Lesson.Data;
+using Lesson.ExceptionHandlers;
 using Lesson.Filters;
 using Lesson.Middleware;
 using Lesson.Options;
 using Lesson.Repositories;
 using Lesson.UnitOfWork;
+using Lesson.Validators;
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -99,6 +102,11 @@ builder.Services.AddSingleton<Lesson.Services.LinqAdvancedService>();
 builder.Services.AddTransient<RequestLoggingMiddleware>();
 builder.Services.AddTransient<ResponseHeaderMiddleware>();
 
+// ----- 07-B: Global exception handler + FluentValidation -----
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
+builder.Services.AddValidatorsFromAssemblyContaining<CreateTransferRequestValidator>();
+
 builder.Services.AddControllers(options =>
 {
     // ----- 06-B: Register action filters globally -----
@@ -130,6 +138,9 @@ app.MapGet("/minimal/secure", () => Results.Ok(new { secret = "you have the key!
 app.UseMiddleware<ResponseHeaderMiddleware>();
 // RequestLoggingMiddleware logs all requests that pass through.
 app.UseMiddleware<RequestLoggingMiddleware>();
+
+// ----- 07-B: Global exception handler (must come early so it catches all unhandled errors) -----
+app.UseExceptionHandler();
 
 app.UseHttpsRedirection();
 app.UseAuthorization();
