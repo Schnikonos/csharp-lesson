@@ -1,4 +1,243 @@
-# Lesson 05-B — LINQ Intermediate
+# Lesson 05-C — LINQ Advanced
+
+> **Branch:** `lesson/05-linq/c-advanced`
+> **Prerequisites:** Lesson 05-B (IEnumerable vs IQueryable, GroupBy, Join, SelectMany, let)
+
+---
+
+## What you will learn
+
+| Topic | C# | Java parallel |
+|---|---|---|
+| Custom LINQ extensions | `this IEnumerable<T>` extension methods | static utility methods (no dot-notation) |
+| `Aggregate` | general-purpose fold / reduce | `stream().reduce(identity, accumulator)` |
+| `Zip` | pair two sequences by index | `IntStream.range + get(i)` |
+| `Chunk` | split into fixed-size pages | Guava `Lists.partition` |
+| `AsParallel` (PLINQ) | CPU-bound parallelism over thread pool | `stream().parallel()` |
+| Expression trees | `Expression<Func<T,bool>>` — build predicates at runtime | Reflection + `Predicate<T>` |
+| `IAsyncEnumerable<T>` | async streaming with `await foreach` | Project Reactor `Flux<T>` |
+
+---
+
+## 1. Custom LINQ Extension Methods
+
+Extending `IEnumerable<T>` with a static class makes reusable pipeline steps feel native:
+
+```csharp
+public static class ProductExtensions
+{
+    public static IEnumerable<Product> InStock(
+        this IEnumerable<Product> source, int minStock = 1)
+        => source.Where(p => p.Stock >= minStock);
+
+    public static IEnumerable<Product> PriceAbove(
+        this IEnumerable<Product> source, decimal min)
+        => source.Where(p => p.Price >= min);
+}
+
+// Usage — reads like built-in LINQ
+var result = products.InStock().PriceAbove(50m).MostExpensive(3).ToList();
+```
+
+**Java parallel:** static helper methods work but break the fluent chain:
+`ProductUtils.mostExpensive(ProductUtils.priceAbove(products, 50), 3)`
+
+---
+
+## 2. Aggregate — General-Purpose Fold
+
+`Aggregate` is the universal accumulator operator (like `reduce` in functional programming):
+
+```csharp
+// Sum all inventory values
+decimal total = products.Aggregate(0m, (acc, p) => acc + p.Price * p.Stock);
+
+// Build a comma-separated string
+string catalogue = products
+    .OrderBy(p => p.Name)
+    .Aggregate(string.Empty, (acc, p) => acc.Length == 0 ? p.Name : acc + ", " + p.Name);
+```
+
+For common aggregates (`Sum`, `Average`, `Max`, `Min`, `Count`) prefer the specialised
+operators — they are more readable and EF Core can translate them to SQL.
+
+**Java:** `stream().reduce(BigDecimal.ZERO, (acc, p) -> acc.add(p.getPrice()), BigDecimal::add)`
+
+---
+
+## 3. Zip — Pair Two Sequences by Index
+
+```csharp
+var sorted = products.OrderByDescending(p => p.Price);
+var ranks  = Enumerable.Range(1, products.Count);
+
+var ranked = sorted
+    .Zip(ranks, (p, rank) => new RankedProduct(rank, p.Name, p.Price))
+    .ToList();
+// ? [ { Rank=1, Name="Laptop Pro", Price=1299 }, … ]
+```
+
+`Zip` stops at the shorter sequence. Three-sequence overloads exist:
+`a.Zip(b, c)` returns value tuples `(a[i], b[i], c[i])`.
+
+**Java:** `IntStream.range(0, Math.min(a.size(), b.size())).mapToObj(i -> new Pair(a.get(i), b.get(i)))`
+
+---
+
+## 4. Chunk — Split into Fixed-Size Pages
+
+Introduced in .NET 6:
+
+```csharp
+// Splits 10 products into pages of 3: [[p1,p2,p3],[p4,p5,p6],[p7,p8,p9],[p10]]
+Product[][] pages = products.Chunk(3).ToArray();
+```
+
+`Chunk` is ideal for batch-processing large sequences without loading everything at once.
+
+**Java:** `Guava: Lists.partition(list, 3)` or a custom `IntStream` splitter.
+
+---
+
+## 5. AsParallel — PLINQ Basics
+
+```csharp
+var expensive = products
+    .AsParallel()                            // distribute work across ThreadPool
+    .Where(p => p.Price > minPrice)          // runs on multiple threads
+    .OrderBy(p => p.Name)                    // re-serialise before output
+    .ToList();
+```
+
+Guidelines:
+- Use for **CPU-bound** work on large collections (> ~1 000 items as a rough threshold).
+- For **I/O-bound** work, use `async/await` — PLINQ blocks threads.
+- Results are non-deterministic unless you add `AsOrdered()` or a final `OrderBy`.
+
+**Java:** `stream().parallel()` — same concept and same caveats.
+
+---
+
+## 6. Expression Trees — Intro
+
+An `Expression<Func<T, bool>>` stores a LINQ query as a **data structure** (AST) rather
+than a compiled delegate. EF Core reads this tree to generate SQL.
+
+```csharp
+// Build: p => p.Price < maxPrice
+var param    = Expression.Parameter(typeof(Product), "p");
+var property = Expression.Property(param, nameof(Product.Price));
+var constant = Expression.Constant(maxPrice, typeof(decimal));
+var body     = Expression.LessThan(property, constant);
+var lambda   = Expression.Lambda<Func<Product, bool>>(body, param);
+
+// Compile and use as a normal delegate
+var predicate = lambda.Compile();
+var result = products.Where(predicate).ToList();
+```
+
+This pattern powers dynamic query builders, AutoMapper projections, and EF Core itself.
+
+**Java parallel:** no direct equivalent; closest is reflection-based predicate construction.
+
+---
+
+## 7. IAsyncEnumerable\<T\> — Async Streaming
+
+`IAsyncEnumerable<T>` lets you produce and consume items **one at a time** asynchronously,
+without buffering the entire result:
+
+```csharp
+// Producer — async iterator method
+public async IAsyncEnumerable<Product> StreamProductsAsync(decimal maxPrice,
+    [EnumeratorCancellation] CancellationToken ct = default)
+{
+    foreach (var p in products.Where(p => p.Price <= maxPrice))
+    {
+        await Task.Delay(0, ct); // simulate async source (DB cursor, HTTP stream, …)
+        yield return p;
+    }
+}
+
+// Consumer
+await foreach (var p in service.StreamProductsAsync(100m))
+    Console.WriteLine(p.Name);
+```
+
+Use cases: database cursors with EF Core (`IAsyncEnumerable<T>` from `ToAsyncEnumerable`),
+file streaming, server-sent events, gRPC streaming.
+
+**Java parallel:** Project Reactor `Flux<T>` or Java 9 `Flow.Publisher<T>`.
+
+---
+
+## Endpoints
+
+| Method | Route | Notes |
+|--------|-------|-------|
+| `GET` | `/linq/advanced/top-in-stock?minPrice=50&topN=3` | Custom extensions chained |
+| `GET` | `/linq/advanced/inventory-value` | `Aggregate` — sum of Price × Stock |
+| `GET` | `/linq/advanced/catalogue` | `Aggregate` — comma-separated names |
+| `GET` | `/linq/advanced/ranked` | `Zip` — products with price rank |
+| `GET` | `/linq/advanced/chunks?pageSize=3` | `Chunk` — pages of products |
+| `GET` | `/linq/advanced/parallel?minPrice=50` | `AsParallel` filter |
+| `GET` | `/linq/advanced/expression-tree?maxPrice=100` | Runtime-built predicate |
+| `GET` | `/linq/advanced/stream?maxPrice=100` | `IAsyncEnumerable<T>` streaming |
+
+---
+
+## Project Structure (new / changed files)
+
+```
+Lesson/
+  Extensions/
+    ProductExtensions.cs       NEW  InStock, Cheapest, MostExpensive, PriceAbove
+  Models/
+    RankedProduct.cs           NEW  result record for Zip demo
+  Services/
+    LinqAdvancedService.cs     NEW  Aggregate, Zip, Chunk, PLINQ, ExprTree, IAsyncEnumerable
+  Controllers/
+    LinqAdvancedController.cs  NEW  /linq/advanced/* endpoints
+  Program.cs                        + LinqAdvancedService registered as singleton
+Lesson.Tests/
+  LinqAdvancedTests.cs         NEW  13 integration tests
+```
+
+---
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~LinqAdvancedTests"
+# 13 tests — all pass
+```
+
+| Test | What it verifies |
+|---|---|
+| `GetTopInStock_ReturnsAtMostTopN` | Custom extension `MostExpensive` honours `topN` |
+| `GetTopInStock_AllProductsExceedMinPrice` | Custom extension `PriceAbove` filters correctly |
+| `GetInventoryValue_MatchesManualCalculation` | `Aggregate` sum equals manual calculation |
+| `GetCatalogue_ContainsAllProductNames` | `Aggregate` string fold contains every name |
+| `GetRanked_CountMatchesProductCount` | `Zip` produces one entry per product |
+| `GetRanked_Rank1HasHighestPrice` | Rank 1 corresponds to the most expensive product |
+| `GetChunks_PageSize3_ProducesCorrectNumberOfChunks` | `Chunk` creates ceiling(10/3) = 4 pages |
+| `GetChunks_TotalItemsEqualsProductCount` | All items preserved across chunks |
+| `GetParallel_SameIdsAsSequentialFilter` | `AsParallel` returns same set as sequential |
+| `GetByExpressionTree_AllProductsBelowMaxPrice` | Expression-tree predicate filters correctly |
+| `GetByExpressionTree_SameResultAsDirectFilter` | Tree result matches hard-coded LINQ filter |
+| `StreamProducts_AllNamesAreBelowMaxPrice` | `IAsyncEnumerable` respects max-price filter |
+| `StreamProducts_CountMatchesExpected` | Streamed item count matches direct count |
+
+---
+
+## Exercises
+
+1. Add a `SumBy<T>` generic extension method on `IEnumerable<T>` that takes a `Func<T, decimal>` selector — a miniature reimplementation of `Sum`.
+2. Use `Aggregate` with a seed of `new Dictionary<string, decimal>()` to build a category ? total-price map in a single pass.
+3. Add `AsOrdered()` to the PLINQ pipeline and verify the test still passes — then remove it and observe whether order is preserved across runs.
+4. Modify `StreamProductsAsync` to introduce a real `await Task.Delay(1)` and test the endpoint with a short cancellation token to observe `OperationCanceledException` propagation.
+5. Build a more complex expression tree: `p => p.Price < maxPrice && p.Category == category` using `Expression.AndAlso`.
+
 
 > **Branch:** `lesson/05-linq/b-intermediate`
 > **Prerequisites:** Lesson 05-A (Where, Select, OrderBy, FirstOrDefault, deferred execution)
