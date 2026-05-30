@@ -29,6 +29,7 @@ using Lesson.Data;
 using Lesson.ExceptionHandlers;
 using Lesson.Filters;
 using Lesson.HostedServices;
+using Lesson.Jobs;
 using Lesson.Messaging;
 using Lesson.Middleware;
 using Lesson.Options;
@@ -40,6 +41,7 @@ using Lesson.Validators;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Quartz;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -139,6 +141,26 @@ builder.Services.AddSingleton<InterestCalculationService>(sp =>
         sp.GetRequiredService<ILogger<InterestCalculationService>>(),
         period: TimeSpan.FromSeconds(30)));   // 30-second interval in production host
 builder.Services.AddHostedService(sp => sp.GetRequiredService<InterestCalculationService>());
+
+// ----- 09-B: Quartz.NET scheduler -----
+// AddQuartz registers the scheduler engine and wires IJob resolution to DI.
+// Java parallel: spring-boot-starter-quartz + @EnableScheduling
+builder.Services.AddQuartz(q =>
+{
+    // Register the job with its key
+    q.AddJob<StatementGenerationJob>(opts => opts.WithIdentity(StatementGenerationJob.Key));
+
+    // Add a trigger: cron "every minute" for demo purposes
+    // (in production this would be e.g. "0 0 2 * * ?" for 2 AM daily)
+    q.AddTrigger(opts => opts
+        .ForJob(StatementGenerationJob.Key)
+        .WithIdentity("StatementTrigger", "Banking")
+        .WithCronSchedule("0 * * * * ?")     // every minute at second 0
+        .StartNow());
+});
+// AddQuartzHostedService starts the scheduler as an IHostedService
+builder.Services.AddQuartzHostedService(opts =>
+    opts.WaitForJobsToComplete = true);      // graceful shutdown waits for running jobs
 
 builder.Services.AddControllers(options =>
 {
