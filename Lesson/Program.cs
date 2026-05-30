@@ -88,6 +88,9 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 // ----- 04-A: Customer repository -----
 builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
 
+// ----- 05: LINQ service (in-memory, no DB) -----
+builder.Services.AddSingleton<Lesson.Services.LinqService>();
+
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
