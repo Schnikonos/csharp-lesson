@@ -1,4 +1,128 @@
-# Lesson 10-A — File Handling Basics (File, StreamReader/StreamWriter, FileStream)
+# Lesson 10-B — IFormFile, CsvHelper & System.Text.Json Async IO
+
+> **Branch:** `lesson/10-file-handling/b-intermediate`
+> **Prerequisites:** Lesson 10-A (File, StreamReader/StreamWriter, FileStream)
+
+---
+
+## What you will learn
+
+| Topic | C# .NET | Java parallel |
+|---|---|---|
+| `IFormFile` | ASP.NET Core multipart upload abstraction | `@RequestParam MultipartFile file` |
+| `[Consumes("multipart/form-data")]` | document accepted content types | `@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)` |
+| `CsvHelper` | third-party CSV reader/writer | OpenCSV / Apache Commons CSV |
+| `CsvReader.GetRecordsAsync<T>` | async streaming CSV parse | — |
+| `[Name]` attribute | map CSV column by name | `@CsvBindByName` (OpenCSV) |
+| `JsonSerializer.SerializeAsync` | async JSON ? stream | `ObjectMapper.writeValue(OutputStream, …)` |
+| `JsonSerializer.DeserializeAsync` | async stream ? JSON | `ObjectMapper.readValue(InputStream, …)` |
+
+---
+
+## 1. IFormFile — file upload
+
+```csharp
+[HttpPost("import")]
+[Consumes("multipart/form-data")]
+public async Task<IActionResult> ImportCsv(IFormFile file, CancellationToken ct)
+{
+    using var reader = new StreamReader(file.OpenReadStream());
+    // …
+}
+```
+
+`IFormFile.OpenReadStream()` gives the raw byte stream without saving to disk.
+Key properties: `FileName`, `Length`, `ContentType`, `OpenReadStream()`.
+
+**Java parallel:**
+```java
+@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+public ResponseEntity<?> upload(@RequestParam("file") MultipartFile file) {
+    try (var is = file.getInputStream()) { … }
+}
+```
+
+---
+
+## 2. CsvHelper — parsing CSV
+
+```csharp
+// Map columns by name using [Name] attribute on the record class
+public record TransactionCsvRecord
+{
+    [Name("account_id")] public string AccountId { get; init; } = "";
+    [Name("amount")]     public decimal Amount   { get; init; }
+    // …
+}
+
+var config = new CsvConfiguration(CultureInfo.InvariantCulture) { HasHeaderRecord = true };
+using var csv = new CsvReader(reader, config);
+
+await foreach (var record in csv.GetRecordsAsync<TransactionCsvRecord>(ct))
+    records.Add(record);
+```
+
+`GetRecordsAsync` returns an `IAsyncEnumerable<T>` — you can process each row without loading the full file into memory first.
+
+---
+
+## 3. System.Text.Json — async file IO
+
+```csharp
+// Write
+await using var fs = new FileStream(path, FileMode.Create, …, useAsync: true);
+await JsonSerializer.SerializeAsync(fs, payload, cancellationToken: ct);
+
+// Read
+await using var fs = new FileStream(path, FileMode.Open, …, useAsync: true);
+var doc = await JsonSerializer.DeserializeAsync<JsonElement>(fs, cancellationToken: ct);
+```
+
+Both operations write/read directly from/to a `Stream` — no intermediate string allocation.
+
+---
+
+## Endpoints
+
+| Method | Route | Notes |
+|--------|-------|-------|
+| `POST` | `/files/csv/import` | Upload a CSV file (`multipart/form-data`), returns parsed records |
+| `GET` | `/files/csv/export` | Download a CSV file (`text/csv`) |
+| `POST` | `/files/json/save` | Serialize a JSON body to a temp file |
+| `GET` | `/files/json/load?path=…` | Deserialize a JSON file |
+
+---
+
+## Project Structure (new / changed files)
+
+```
+Lesson/
+  FileHandling/
+    TransactionCsvRecord.cs  NEW  CsvHelper class map with [Name] attributes
+  Controllers/
+    CsvFileController.cs     NEW  /files/csv/* and /files/json/* endpoints
+Lesson.Tests/
+  CsvFileTests.cs            NEW  8 integration tests + CsvTestFactory
+```
+
+---
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~CsvFileTests"
+# 8 tests — all pass
+```
+
+---
+
+## Exercises
+
+1. Add a `[Required]` column validation: if `amount` is missing return `400` instead of silently defaulting to `0`.
+2. Write a CSV export endpoint that streams directly to the response body using `Response.Body` — no `MemoryStream` intermediate.
+3. Use `JsonSerializerOptions` with `PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower` and observe how the saved JSON changes.
+4. Add a `POST /files/csv/export` that accepts a list of records as JSON body and returns a CSV download.
+
 
 > **Branch:** `lesson/10-file-handling/a-basic`
 > **Prerequisites:** Lesson 09 (scheduled tasks)
