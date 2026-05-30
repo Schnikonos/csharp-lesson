@@ -1,5 +1,6 @@
 using Lesson.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 
 namespace Lesson.Controllers;
 
@@ -14,23 +15,22 @@ public class ExchangeRateController : ControllerBase
         _exchangeRateService = exchangeRateService;
     }
 
-    // GET /exchangerate/{baseCurrency}  e.g. GET /exchangerate/EUR
+    // GET /exchangerate/{baseCurrency}
     // -------------------------------------------------------------------------
-    // C# NOTE: CancellationToken as an action parameter
+    // NEW IN LESSON 01-C: [OutputCache(PolicyName = "ExchangeRates")]
     //
-    // ASP.NET Core automatically binds a CancellationToken parameter to the
-    // HTTP request's cancellation token. You do NOT annotate it — the framework
-    // detects it by type.
+    // The "ExchangeRates" policy (defined in Program.cs) caches the full
+    // serialized response for 60 seconds. On a cache hit, this method is
+    // never invoked — ASP.NET Core returns the stored bytes directly.
     //
-    // This means: if the client closes the connection mid-request, the token
-    // is cancelled, the await in ExchangeRateService is interrupted, and the
-    // outgoing HTTP call to the external API is aborted — no wasted resources.
+    // The cache key is the request URL path, so /exchangerate/EUR and
+    // /exchangerate/USD are cached independently.
     //
     // Java parallel:
-    //   Spring MVC has no direct equivalent; you would use DeferredResult or
-    //   reactive WebFlux to achieve the same cancellation propagation.
+    //   @Cacheable(value = "exchangeRates", key = "#baseCurrency")
     // -------------------------------------------------------------------------
     [HttpGet("{baseCurrency}")]
+    [OutputCache(PolicyName = "ExchangeRates")]
     [ProducesResponseType<Dictionary<string, decimal>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status502BadGateway)]
     public async Task<IActionResult> GetRates(string baseCurrency, CancellationToken cancellationToken)
@@ -45,8 +45,8 @@ public class ExchangeRateController : ControllerBase
         }
         catch (HttpRequestException ex)
         {
-            // The external API returned an error — surface it as 502 Bad Gateway,
-            // which is the correct HTTP status when an upstream dependency fails.
+            // Polly has already exhausted retries and the circuit may be open.
+            // Surface the final failure as 502 Bad Gateway.
             return StatusCode(StatusCodes.Status502BadGateway, new { error = ex.Message });
         }
     }
