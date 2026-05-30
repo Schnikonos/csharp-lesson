@@ -1,4 +1,128 @@
-# Lesson 10-B — IFormFile, CsvHelper & System.Text.Json Async IO
+# Lesson 11-A — Encoding & Hashing (Base64, SHA-256, HMAC, BCrypt)
+
+> **Branch:** `lesson/11-encryption/a-basic`
+> **Prerequisites:** Lesson 10 (file handling)
+
+---
+
+## What you will learn
+
+| Topic | C# .NET | Java parallel |
+|---|---|---|
+| Base64 encode/decode | `Convert.ToBase64String` / `Convert.FromBase64String` | `Base64.getEncoder().encodeToString` |
+| SHA-256 hashing | `SHA256.HashData(bytes)` | `MessageDigest.getInstance("SHA-256")` |
+| HMAC-SHA256 | `new HMACSHA256(key)` | `Mac.getInstance("HmacSHA256")` |
+| Constant-time comparison | `CryptographicOperations.FixedTimeEquals` | `MessageDigest.isEqual` |
+| Password hashing | `BCrypt.Net.BCrypt.HashPassword` | `BCryptPasswordEncoder` (Spring Security) |
+| Password verification | `BCrypt.Net.BCrypt.Verify` | `BCryptPasswordEncoder.matches` |
+
+---
+
+## 1. Base64
+
+Base64 encodes arbitrary bytes as printable ASCII text — useful for embedding binary data in JSON/HTTP.
+It is **not** encryption — it is trivially reversible.
+
+```csharp
+var bytes   = Encoding.UTF8.GetBytes("Hello, Bank!");
+var encoded = Convert.ToBase64String(bytes);          // "SGVsbG8sIEJhbmsh"
+var decoded = Encoding.UTF8.GetString(
+                Convert.FromBase64String(encoded));   // "Hello, Bank!"
+```
+
+---
+
+## 2. SHA-256 — one-way hash
+
+Good for: document fingerprints, integrity checks, checksums.
+**Bad for passwords** — it's too fast; GPUs can compute billions/second.
+
+```csharp
+var bytes = Encoding.UTF8.GetBytes(input);
+var hash  = SHA256.HashData(bytes);          // static, no allocation
+var hex   = Convert.ToHexString(hash).ToLowerInvariant();
+```
+
+SHA-256 is deterministic — same input always produces same output.
+
+---
+
+## 3. HMAC-SHA256 — keyed hash
+
+HMAC adds a **secret key** to the hash. Useful for API request signing and JWT secrets.
+Only parties with the key can verify the signature.
+
+```csharp
+using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(key));
+var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(data));
+```
+
+**Always compare MAC values with constant-time equality** to prevent timing attacks:
+```csharp
+CryptographicOperations.FixedTimeEquals(expected, actual)
+```
+
+---
+
+## 4. BCrypt — password hashing
+
+BCrypt is intentionally slow (configurable work factor) to make brute-force expensive.
+It generates and stores a random salt internally.
+
+```csharp
+// Hash (work factor 11 = ~100ms on a modern CPU)
+var hash = BCrypt.Net.BCrypt.HashPassword(password, workFactor: 11);
+
+// Verify — automatically extracts salt from the hash string
+var valid = BCrypt.Net.BCrypt.Verify(password, hash);
+```
+
+**Never use SHA-256 for passwords.** Always use bcrypt, argon2, or scrypt.
+
+---
+
+## Endpoints
+
+| Method | Route | Notes |
+|--------|-------|-------|
+| `POST` | `/crypto/base64/encode` | UTF-8 text ? Base64 |
+| `POST` | `/crypto/base64/decode` | Base64 ? UTF-8 text |
+| `POST` | `/crypto/sha256` | SHA-256 hash (hex + base64) |
+| `POST` | `/crypto/hmac` | HMAC-SHA256 (hex + base64) |
+| `POST` | `/crypto/hmac/verify` | Constant-time HMAC check |
+| `POST` | `/crypto/password/hash` | BCrypt hash |
+| `POST` | `/crypto/password/verify` | BCrypt verify |
+
+---
+
+## Project Structure (new / changed files)
+
+```
+Lesson/
+  Controllers/
+    CryptoBasicController.cs  NEW  /crypto/* endpoints
+Lesson.Tests/
+  CryptoBasicTests.cs         NEW  11 tests + CryptoTestFactory
+```
+
+---
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~CryptoBasicTests"
+# 11 tests — all pass
+```
+
+---
+
+## Exercises
+
+1. Add a `GET /crypto/sha256/file?path=…` endpoint that hashes a file's bytes — useful for verifying download integrity.
+2. Benchmark BCrypt at work factors 10, 12, and 14 — observe the exponential time increase.
+3. Add an endpoint that computes SHA-256 of a streaming request body using `SHA256.Create()` and `CryptoStream`.
+4. Explain why `string.Equals(a, b)` is unsafe for comparing HMACs.
+
 
 > **Branch:** `lesson/10-file-handling/b-intermediate`
 > **Prerequisites:** Lesson 10-A (File, StreamReader/StreamWriter, FileStream)
