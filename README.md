@@ -1,4 +1,4 @@
-﻿# Lesson 02-A — Configuration Basics
+﻿# Lesson 02-B
 
 > **Branch:** `lesson/02-configuration/a-basic`
 > **Prerequisites:** Lesson 01 series (controllers, DI)
