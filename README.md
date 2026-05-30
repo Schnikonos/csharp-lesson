@@ -1,4 +1,120 @@
-# Lesson 11-A — Encoding & Hashing (Base64, SHA-256, HMAC, BCrypt)
+# Lesson 11-B — AES Symmetric Encryption (Key, IV, CBC mode)
+
+> **Branch:** `lesson/11-encryption/b-intermediate`
+> **Prerequisites:** Lesson 11-A (Base64, hashing, BCrypt)
+
+---
+
+## What you will learn
+
+| Topic | C# .NET | Java parallel |
+|---|---|---|
+| AES | `Aes.Create()` | `Cipher.getInstance("AES/CBC/PKCS5Padding")` |
+| Key generation | `aes.GenerateKey()` | `KeyGenerator.generateKey()` |
+| IV generation | `aes.GenerateIV()` | `cipher.init(ENCRYPT_MODE, key)` auto-IV |
+| CBC mode | `aes.Mode = CipherMode.CBC` | `"AES/CBC/PKCS5Padding"` |
+| Encrypt | `aes.CreateEncryptor().TransformFinalBlock(…)` | `cipher.doFinal(bytes)` |
+| Decrypt | `aes.CreateDecryptor().TransformFinalBlock(…)` | `cipher.doFinal(cipherBytes)` |
+| Key sizes | 128 / 192 / 256 bits | Same |
+
+---
+
+## 1. AES fundamentals
+
+AES is a **symmetric** cipher — the same key is used to encrypt and decrypt.
+
+| Term | Description |
+|---|---|
+| Key | 128/192/256-bit secret; must be protected (vault, not config file) |
+| IV | 16-byte random value; generated fresh per message; public (travels with ciphertext) |
+| Mode | CBC chains blocks; GCM adds authentication tag (prefer GCM for new code) |
+| Padding | PKCS7 pads the last block to 16 bytes |
+
+---
+
+## 2. Encrypt
+
+```csharp
+using var aes  = Aes.Create();
+aes.Key        = key;           // 32-byte (256-bit)
+aes.Mode       = CipherMode.CBC;
+aes.GenerateIV();               // cryptographically random each call
+
+using var encryptor  = aes.CreateEncryptor();
+var cipherBytes      = encryptor.TransformFinalBlock(plainBytes, 0, plainBytes.Length);
+
+// Send both IV and ciphertext to the receiver (IV is NOT secret)
+```
+
+**Java parallel:**
+```java
+Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+cipher.init(Cipher.ENCRYPT_MODE, secretKey);
+byte[] iv         = cipher.getIV();
+byte[] cipherText = cipher.doFinal(plainBytes);
+```
+
+---
+
+## 3. Decrypt
+
+```csharp
+using var aes  = Aes.Create();
+aes.Key        = key;
+aes.IV         = iv;            // same IV that was used during encryption
+aes.Mode       = CipherMode.CBC;
+
+using var decryptor = aes.CreateDecryptor();
+var plainBytes = decryptor.TransformFinalBlock(cipherBytes, 0, cipherBytes.Length);
+```
+
+---
+
+## 4. Why the IV matters
+
+Encrypting the same plaintext twice **with the same IV** produces the same ciphertext — leaking that the values are identical (ECB vulnerability).
+Generating a fresh random IV every time prevents this, at zero cost.
+
+---
+
+## Endpoints
+
+| Method | Route | Notes |
+|--------|-------|-------|
+| `GET` | `/crypto/aes/generate-key?bits=256` | Generate a random AES key |
+| `POST` | `/crypto/aes/encrypt` | Encrypt plaintext; returns `ciphertext` + `iv` (both Base64) |
+| `POST` | `/crypto/aes/decrypt` | Decrypt; needs `ciphertextBase64`, `ivBase64`, `keyBase64` |
+
+---
+
+## Project Structure (new / changed files)
+
+```
+Lesson/
+  Controllers/
+    AesController.cs         NEW  /crypto/aes/* endpoints
+Lesson.Tests/
+  AesEncryptionTests.cs      NEW  9 tests (3 Theory + 6 Fact) + AesTestFactory
+```
+
+---
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~AesEncryptionTests"
+# 9 tests — all pass
+```
+
+---
+
+## Exercises
+
+1. Switch to **AES-GCM** (`AesGcm`) — it adds an authentication tag that detects tampering. Verify that modifying a byte of the ciphertext causes `AuthenticationTagMismatchException`.
+2. Implement a helper that **prepends the IV** to the ciphertext bytes so only one Base64 string needs to be stored, and split it on decrypt.
+3. Store the AES key in `IOptions<T>` and read it from User Secrets — simulate how production apps manage symmetric keys.
+4. Benchmark AES-128 vs AES-256 for 1 MB of data using `Stopwatch` — the difference is small.
+
 
 > **Branch:** `lesson/11-encryption/a-basic`
 > **Prerequisites:** Lesson 10 (file handling)
