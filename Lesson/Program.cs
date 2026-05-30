@@ -119,6 +119,10 @@ builder.Services.AddTransient(
     typeof(IPipelineBehavior<,>),
     typeof(ValidationBehavior<,>));
 
+// ----- 08-A: Domain event bus + audit subscriber -----
+builder.Services.AddSingleton<Lesson.Events.DomainEventBus>();
+builder.Services.AddSingleton<Lesson.Subscribers.PaymentAuditSubscriber>();
+
 builder.Services.AddControllers(options =>
 {
     // ----- 06-B: Register action filters globally -----
