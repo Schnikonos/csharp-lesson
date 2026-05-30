@@ -28,6 +28,8 @@ using Lesson.Configuration;
 using Lesson.Data;
 using Lesson.ExceptionHandlers;
 using Lesson.Filters;
+using Lesson.HostedServices;
+using Lesson.Messaging;
 using Lesson.Middleware;
 using Lesson.Options;
 using Lesson.Pipeline;
@@ -122,6 +124,11 @@ builder.Services.AddTransient(
 // ----- 08-A: Domain event bus + audit subscriber -----
 builder.Services.AddSingleton<Lesson.Events.DomainEventBus>();
 builder.Services.AddSingleton<Lesson.Subscribers.PaymentAuditSubscriber>();
+
+// ----- 08-C: Channel<T> outbox queue + background consumer -----
+builder.Services.AddSingleton<OutboxChannel>();
+builder.Services.AddSingleton<OutboxConsumerService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<OutboxConsumerService>());
 
 builder.Services.AddControllers(options =>
 {
