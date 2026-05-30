@@ -26,6 +26,7 @@
 
 using Lesson.Configuration;
 using Lesson.Data;
+using Lesson.Filters;
 using Lesson.Middleware;
 using Lesson.Options;
 using Lesson.Repositories;
@@ -98,7 +99,11 @@ builder.Services.AddSingleton<Lesson.Services.LinqAdvancedService>();
 builder.Services.AddTransient<RequestLoggingMiddleware>();
 builder.Services.AddTransient<ResponseHeaderMiddleware>();
 
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    // ----- 06-B: Register action filters globally -----
+    options.Filters.Add<CorrelationIdFilter>();
+});
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
