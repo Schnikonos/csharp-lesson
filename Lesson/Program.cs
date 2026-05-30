@@ -1,39 +1,97 @@
 // =============================================================================
-// LESSON 02-C: Advanced Configuration
+// LESSON 03-A: EF Core CRUD — DbContext, SQLite, Migrations
 //
-// Topics covered:
+// Entity Framework Core is .NET's official ORM.
 //
-// 1. USER SECRETS
-//    dotnet user-secrets set "ConnectionStrings:BankDb" "Server=..."
-//    Stored outside the repo at:
-//      %APPDATA%\Microsoft\UserSecrets\{UserSecretsId}\secrets.json  (Windows)
-//      ~/.microsoft/usersecrets/{UserSecretsId}/secrets.json         (Linux/Mac)
-//    Loaded automatically in Development. Never committed.
-//    Java parallel: Spring's @Value + system properties / Vault.
+// Key concepts:
+//   DbContext     — Unit of Work + identity map; tracks entity changes in memory.
+//                   Java parallel: EntityManager / @PersistenceContext
+//   DbSet<T>      — Repository for a specific entity type.
+//                   Java parallel: JpaRepository<T, ID>
+//   Migrations    — Code-first schema versioning.
+//                   Java parallel: Flyway / Liquibase
+//   SaveChangesAsync() — Flushes all tracked changes to the DB in a transaction.
+//                        Java parallel: entityManager.flush() / @Transactional
 //
-// 2. ENVIRONMENT VARIABLES
-//    Set hierarchical keys using __ (double underscore) as separator:
-//      ConnectionStrings__BankDb=Server=prod;...
-//    Env-vars override appsettings and User Secrets (loaded last).
-//    Java parallel: SPRING_DATASOURCE_URL env-var.
-//
-// 3. NAMED OPTIONS
-//    Register the same POCO multiple times under different names:
-//      services.AddOptions<T>("domestic").BindConfiguration("...");
-//      services.AddOptions<T>("international").BindConfiguration("...");
-//    Retrieve with IOptionsMonitor<T>.Get("domestic").
-//    Java parallel: @Qualifier / named @Bean.
-//
-// 4. CUSTOM IConfigurationProvider
-//    Implement IConfigurationSource + IConfigurationProvider to pull config
-//    from any source (database, HTTP endpoint, encrypted file, etc.).
-//    Java parallel: custom PropertySource in Spring.
+// Lifetime:
+//   DbContext is registered as Scoped (one per HTTP request) — the EF Core default.
+//   Never inject a Scoped DbContext into a Singleton service; use IDbContextFactory<T> instead.
 // =============================================================================
 
 using Lesson.Configuration;
+using Lesson.Data;
 using Lesson.Options;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ----- Options carried from Lesson 02 -----
+builder.Services
+    .AddOptions<BankOptions>()
+    .BindConfiguration(BankOptions.SectionName)
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+builder.Services
+    .AddOptions<FeatureFlagOptions>()
+    .BindConfiguration(FeatureFlagOptions.SectionName);
+
+builder.Services
+    .AddOptions<ConnectionStringOptions>()
+    .BindConfiguration(ConnectionStringOptions.SectionName)
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+builder.Services
+    .AddOptions<TransferLimitOptions>("domestic")
+    .BindConfiguration("TransferLimits:Domestic")
+    .ValidateDataAnnotations();
+
+builder.Services
+    .AddOptions<TransferLimitOptions>("international")
+    .BindConfiguration("TransferLimits:International")
+    .ValidateDataAnnotations();
+
+((IConfigurationBuilder)builder.Configuration).Add(new InMemoryDbConfigurationSource
+{
+    Data = new Dictionary<string, string?>
+    {
+        ["CustomConfig:WelcomeMessage"] = "Hello from the custom provider!",
+        ["CustomConfig:MaxRetries"] = "3",
+        ["CustomConfig:ServiceUrl"] = "https://api.acmebank.internal"
+    }
+});
+
+// ----- 03-A: EF Core — SQLite DbContext registration -----
+// AddDbContext registers BankingDbContext as Scoped.
+// The connection string is read from appsettings.json "ConnectionStrings:BankDb".
+// In Development, this is also overridable via User Secrets (Lesson 02-C).
+builder.Services.AddDbContext<BankingDbContext>(options =>
+    options.UseSqlite(builder.Configuration.GetConnectionString("BankDb")
+        ?? "Data Source=bank.db"));
+
+builder.Services.AddControllers();
+builder.Services.AddOpenApi();
+
+var app = builder.Build();
+
+// ----- Apply pending EF Core migrations automatically at startup -----
+// In production you would use a dedicated migration step (e.g. CI/CD pipeline).
+// For learning purposes, MigrateAsync() is called here so the DB is always up to date.
+// Java parallel: Flyway.migrate() / spring.flyway.enabled=true
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<BankingDbContext>();
+    await db.Database.MigrateAsync();
+}
+
+if (app.Environment.IsDevelopment())
+    app.MapOpenApi();
+
+app.UseHttpsRedirection();
+app.UseAuthorization();
+app.MapControllers();
+app.Run();
 
 // ----- Options from 02-B (unchanged) -----
 builder.Services
@@ -55,41 +113,6 @@ builder.Services
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
-// ----- 02-C: Named options -----
-// Same POCO, two named instances bound to different sub-sections.
-builder.Services
-    .AddOptions<TransferLimitOptions>("domestic")
-    .BindConfiguration("TransferLimits:Domestic")
-    .ValidateDataAnnotations();
 
-builder.Services
-    .AddOptions<TransferLimitOptions>("international")
-    .BindConfiguration("TransferLimits:International")
-    .ValidateDataAnnotations();
 
-// ----- 02-C: Custom configuration provider -----
-// Adds a simulated "database" config source (read-only key/value store).
-// Cast to IConfigurationBuilder to access the Add extension method unambiguously.
-((IConfigurationBuilder)builder.Configuration).Add(new InMemoryDbConfigurationSource
-{
-    Data = new Dictionary<string, string?>
-    {
-        ["CustomConfig:WelcomeMessage"] = "Hello from the custom provider!",
-        ["CustomConfig:MaxRetries"] = "3",
-        ["CustomConfig:ServiceUrl"] = "https://api.acmebank.internal"
-    }
-});
-
-builder.Services.AddControllers();
-builder.Services.AddOpenApi();
-
-var app = builder.Build();
-
-if (app.Environment.IsDevelopment())
-    app.MapOpenApi();
-
-app.UseHttpsRedirection();
-app.UseAuthorization();
-app.MapControllers();
-app.Run();
 
