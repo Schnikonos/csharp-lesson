@@ -1,4 +1,147 @@
-# Lesson 11-B — AES Symmetric Encryption (Key, IV, CBC mode)
+# Lesson 11-C — ASP.NET Core Data Protection API (the Jasypt equivalent)
+
+> **Branch:** `lesson/11-encryption/c-advanced`
+> **Prerequisites:** Lesson 11-B (AES, key/IV management)
+
+---
+
+## What you will learn
+
+| Topic | C# .NET | Java parallel |
+|---|---|---|
+| `IDataProtectionProvider` | root factory for protectors | Jasypt `StandardPBEStringEncryptor` |
+| `IDataProtector.Protect` | encrypt + authenticate a string | `encryptor.encrypt(value)` |
+| `IDataProtector.Unprotect` | decrypt and verify | `encryptor.decrypt(value)` |
+| **Purpose strings** | isolate key rings per feature | Jasypt password + SaltGenerator |
+| `ITimeLimitedDataProtector` | token with built-in expiry | Hand-rolled JWT `exp` claim |
+| Key ring | auto-managed, auto-rotated key store | Jasypt `password` property |
+| Tamper detection | built-in HMAC — throws on any modification | — |
+
+---
+
+## 1. Why Data Protection instead of raw AES?
+
+| | Raw AES (Lesson 11-B) | Data Protection API |
+|---|---|---|
+| Key management | You manage key, IV, rotation | Automatic key generation + rotation |
+| Authentication | None (CBC mode) | Built-in (HMAC) — detects tampering |
+| Purpose isolation | Manual | `CreateProtector("PurposeName")` |
+| Token expiry | Not built in | `ITimeLimitedDataProtector` |
+| Production storage | You choose | File system ? Azure Blob ? Key Vault |
+| Jasypt similarity | Low | **High** — same one-liner API |
+
+Use Data Protection for **application data** (tokens, cookies, config values).
+Use raw AES when you need **interoperability** with other systems (e.g. encrypt for a Java service).
+
+---
+
+## 2. Basic protect / unprotect
+
+```csharp
+// Injected: IDataProtectionProvider dpProvider
+
+// Purpose string creates an isolated sub-key
+IDataProtector protector = dpProvider.CreateProtector("BankingApp.AccountTokens");
+
+string token     = protector.Protect("AccountId:42");
+string plaintext = protector.Unprotect(token);   // "AccountId:42"
+```
+
+**Java parallel (Jasypt):**
+```java
+StandardPBEStringEncryptor enc = new StandardPBEStringEncryptor();
+enc.setPassword(password);
+String encrypted = enc.encrypt(value);
+String decrypted = enc.decrypt(encrypted);
+```
+
+---
+
+## 3. Purpose isolation
+
+```csharp
+var passwordResetProtector = dpProvider.CreateProtector("PasswordReset");
+var sessionProtector       = dpProvider.CreateProtector("Session");
+
+var token = passwordResetProtector.Protect("user@bank.com");
+
+// This will throw CryptographicException — wrong purpose
+sessionProtector.Unprotect(token);
+```
+
+Purpose strings act like namespaces: data protected with one purpose **cannot** be read by another, even though the same underlying key ring is used.
+
+---
+
+## 4. Time-limited tokens
+
+```csharp
+ITimeLimitedDataProtector tl = dpProvider
+    .CreateProtector("PasswordReset")
+    .ToTimeLimitedDataProtector();
+
+// Create — valid for 15 minutes
+string token = tl.Protect("user@bank.com", DateTimeOffset.UtcNow.AddMinutes(15));
+
+// Consume — throws CryptographicException if expired
+string payload = tl.Unprotect(token, out DateTimeOffset expiry);
+```
+
+Ideal for: password-reset links, email verification codes, one-time tokens.
+
+---
+
+## 5. Registration
+
+```csharp
+// Program.cs
+builder.Services.AddDataProtection();
+// Production: .PersistKeysToAzureBlobStorage(blobClient)
+//             .ProtectKeysWithAzureKeyVault(keyVaultUri, new DefaultAzureCredential())
+```
+
+---
+
+## Endpoints
+
+| Method | Route | Notes |
+|--------|-------|-------|
+| `POST` | `/crypto/dp/protect` | Protect a string with an optional purpose |
+| `POST` | `/crypto/dp/unprotect` | Unprotect; `400` on wrong purpose or tampered token |
+| `POST` | `/crypto/dp/token/create` | Create a time-limited token (TTL in seconds) |
+| `POST` | `/crypto/dp/token/consume` | Consume token; `400` if expired or tampered |
+
+---
+
+## Project Structure (new / changed files)
+
+```
+Lesson/
+  Controllers/
+    DataProtectionController.cs  NEW  /crypto/dp/* endpoints
+  Program.cs                          + AddDataProtection()
+Lesson.Tests/
+  DataProtectionTests.cs         NEW  8 tests + DataProtectionTestFactory
+```
+
+---
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~DataProtectionTests"
+# 8 tests — all pass
+```
+
+---
+
+## Exercises
+
+1. Add `PersistKeysToFileSystem(new DirectoryInfo("/tmp/dp-keys"))` to `AddDataProtection()` — restart the app twice and verify that tokens survive restarts.
+2. Call `Protect` with purpose `"A"` in one test, then attempt `Unprotect` with purpose `"B"` — confirm the `400` response.
+3. Simulate Jasypt: read an `EncryptedPassword` string from `appsettings.json` and decrypt it at startup using `IDataProtector`, injecting the plaintext password into an `IOptions<T>` object.
+4. Extend the `ConsumeToken` endpoint to return the remaining TTL as seconds — compute it from `expiry - DateTimeOffset.UtcNow`.
+
 
 > **Branch:** `lesson/11-encryption/b-intermediate`
 > **Prerequisites:** Lesson 11-A (Base64, hashing, BCrypt)

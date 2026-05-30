@@ -128,6 +128,11 @@ builder.Services.AddTransient(
 builder.Services.AddSingleton<Lesson.Events.DomainEventBus>();
 builder.Services.AddSingleton<Lesson.Subscribers.PaymentAuditSubscriber>();
 
+// ----- 11-C: Data Protection API -----
+// AddDataProtection sets up the key ring (stored in %APPDATA%\ASP.NET\DataProtection-Keys by default).
+// In production: .PersistKeysToAzureBlobStorage(...) + .ProtectKeysWithAzureKeyVault(...)
+builder.Services.AddDataProtection();
+
 // ----- 08-C: Channel<T> outbox queue + background consumer -----
 builder.Services.AddSingleton<OutboxChannel>();
 builder.Services.AddSingleton<OutboxConsumerService>();
