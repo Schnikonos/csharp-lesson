@@ -4,6 +4,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Makes the auto-generated Program class visible to the test project -->
+    <InternalsVisibleTo>Lesson.Tests</InternalsVisibleTo>
   </PropertyGroup>
 
   <ItemGroup>
