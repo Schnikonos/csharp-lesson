@@ -69,4 +69,44 @@ public interface IAccountRepository
 
     /// <summary>Returns the count of active accounts, optionally filtered by type.</summary>
     Task<int> CountActiveAsync(string? accountType = null);
+
+    // ── Lesson 04-C ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns accounts whose balance exceeds a threshold using a hand-written SQL query
+    /// via <c>FromSqlRaw</c>. The result is still a tracked <see cref="BankAccount"/> entity
+    /// so further LINQ operators (Where, OrderBy, …) can be chained on top.
+    ///
+    /// Java parallel: @Query(value = "SELECT * FROM bank_accounts WHERE balance > :min", nativeQuery = true)
+    /// </summary>
+    Task<IReadOnlyList<BankAccount>> GetByRawSqlAsync(decimal minBalance);
+
+    /// <summary>
+    /// Simulates a stored-procedure call by executing a parameterised <c>FromSqlRaw</c>
+    /// query named like an SP ("sp_GetAccountByNumber").  On SQL Server / PostgreSQL this
+    /// would be <c>EXEC sp_GetAccountByNumber @number</c>.
+    /// SQLite has no SP engine, so we fall back to an equivalent SELECT.
+    ///
+    /// Java parallel: @Procedure("sp_GetAccountByNumber") or EntityManager.createNativeQuery(…)
+    /// </summary>
+    Task<BankAccount?> GetByNumberStoredProcAsync(string accountNumber);
+
+    /// <summary>
+    /// Returns accounts with all their <c>Transactions</c> loaded using
+    /// <c>AsSplitQuery()</c>: EF Core fires two SELECTs instead of a single JOIN,
+    /// avoiding the cartesian product ("N×M row explosion") that occurs when multiple
+    /// collection navigations are included in one query.
+    ///
+    /// Java parallel: two separate @Query calls / @EntityGraph with SUBSELECT fetch.
+    /// </summary>
+    Task<IReadOnlyList<BankAccount>> GetWithTransactionsSplitAsync();
+
+    /// <summary>
+    /// Uses a <em>compiled query</em> (<c>EF.CompileAsyncQuery</c>) to look up an account
+    /// by number.  The query is translated to SQL and cached exactly once, then reused on
+    /// every subsequent call — removing per-call LINQ expression-tree translation overhead.
+    ///
+    /// Java parallel: Hibernate named queries / @NamedNativeQuery compiled at startup.
+    /// </summary>
+    Task<BankAccount?> GetByNumberCompiledAsync(string accountNumber);
 }

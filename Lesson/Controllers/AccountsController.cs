@@ -6,16 +6,16 @@ using Microsoft.EntityFrameworkCore;
 namespace Lesson.Controllers;
 
 /// <summary>
+/// Lesson 04-C — raw SQL, stored-procedure simulation, compiled queries, split queries.
 /// Lesson 04-B — adds pagination, projection, GroupBy aggregate, and Any/All/Count endpoints.
 /// Lesson 03-C — uses IUnitOfWork; soft delete + restore; optimistic concurrency.
 /// Lesson 03-B — IAccountRepository; IQueryable filter; owned Address.
 ///
-/// New endpoints (04-B):
-///   GET  /accounts/summary?page=&amp;pageSize=   — paginated lightweight projection
-///   GET  /accounts/stats                    — GroupBy aggregate per account type
-///   GET  /accounts/any-high-balance         — Any() predicate
-///   GET  /accounts/all-positive             — All() predicate
-///   GET  /accounts/count?type=              — Count() with optional filter
+/// New endpoints (04-C):
+///   GET  /accounts/raw?minBalance=          — FromSqlRaw parameterised query
+///   GET  /accounts/by-number-sp/{number}    — simulated stored procedure call
+///   GET  /accounts/by-number-compiled/{n}   — compiled query lookup
+///   GET  /accounts/with-transactions        — AsSplitQuery (cartesian explosion demo)
 /// </summary>
 [ApiController]
 [Route("accounts")]
@@ -184,6 +184,68 @@ public class AccountsController(IUnitOfWork uow) : ControllerBase
     [HttpGet("count")]
     public async Task<ActionResult<int>> CountActive([FromQuery] string? type = null)
         => Ok(await uow.Accounts.CountActiveAsync(type));
+
+    // ── Lesson 04-C endpoints ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// FromSqlRaw — executes hand-written parameterised SQL.
+    /// EF Core still returns tracked entities, so LINQ can be chained on top.
+    /// </summary>
+    [HttpGet("raw")]
+    public async Task<ActionResult<IEnumerable<AccountResponse>>> GetByRawSql(
+        [FromQuery] decimal minBalance = 0)
+    {
+        var accounts = await uow.Accounts.GetByRawSqlAsync(minBalance);
+        return Ok(accounts.Select(ToResponse));
+    }
+
+    /// <summary>
+    /// Stored-procedure simulation via FromSqlRaw.
+    /// On SQL Server: EXEC sp_GetAccountByNumber {0}.
+    /// </summary>
+    [HttpGet("by-number-sp/{accountNumber}")]
+    public async Task<ActionResult<AccountResponse>> GetByNumberStoredProc(string accountNumber)
+    {
+        var account = await uow.Accounts.GetByNumberStoredProcAsync(accountNumber);
+        if (account is null)
+            return NotFound(new { Error = $"Account '{accountNumber}' not found." });
+        return Ok(ToResponse(account));
+    }
+
+    /// <summary>
+    /// Compiled query — expression tree translated to SQL once, cached forever.
+    /// Useful for hot paths called thousands of times per second.
+    /// </summary>
+    [HttpGet("by-number-compiled/{accountNumber}")]
+    public async Task<ActionResult<AccountResponse>> GetByNumberCompiled(string accountNumber)
+    {
+        var account = await uow.Accounts.GetByNumberCompiledAsync(accountNumber);
+        if (account is null)
+            return NotFound(new { Error = $"Account '{accountNumber}' not found." });
+        return Ok(ToResponse(account));
+    }
+
+    /// <summary>
+    /// AsSplitQuery — loads accounts + their transactions via two SQL SELECTs
+    /// instead of a single JOIN, avoiding the Cartesian explosion:
+    ///   Without split: 2 accounts × 5 transactions = 10 result rows
+    ///   With split:    2 rows + 5 rows = 7 rows (two round trips)
+    /// </summary>
+    [HttpGet("with-transactions")]
+    public async Task<ActionResult> GetWithTransactions()
+    {
+        var accounts = await uow.Accounts.GetWithTransactionsSplitAsync();
+        var result = accounts.Select(a => new
+        {
+            a.Id,
+            a.AccountNumber,
+            a.OwnerName,
+            a.Balance,
+            Transactions = a.Transactions.Select(t => new TransactionSummaryDto(
+                t.Id, t.Type, t.Amount, t.Description, t.OccurredAt))
+        });
+        return Ok(result);
+    }
 
     // ── Mapping helpers ───────────────────────────────────────────────────────
     private static AccountResponse ToResponse(BankAccount a) => new(

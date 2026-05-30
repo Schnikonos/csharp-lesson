@@ -6,6 +6,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Lesson.Repositories;
 
 /// <summary>
+/// Lesson 04-C — raw SQL (FromSqlRaw / ExecuteSqlRaw), stored-procedure simulation,
+///               compiled queries (EF.CompileAsyncQuery), split queries (AsSplitQuery).
 /// Lesson 04-B — adds pagination (Skip/Take), projection (Select into DTO),
 ///               GroupBy aggregates, Any/All/Count predicates.
 /// Lesson 03-C — soft delete, restore, GetDeletedAsync; SaveChangesAsync calls
@@ -151,4 +153,94 @@ public class AccountRepository(BankingDbContext db) : IAccountRepository
             query = query.Where(a => a.AccountType == accountType);
         return query.CountAsync();
     }
+
+    // ── Lesson 04-C ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Compiled query — the expression tree is translated to SQL exactly ONCE at the
+    /// class level, then cached for reuse.  Every subsequent call skips the translation
+    /// step and executes the pre-built SQL immediately.
+    ///
+    /// Declared as a static field so it is compiled once per AppDomain, not once per
+    /// repository instance.
+    ///
+    /// Java parallel: Hibernate @NamedQuery / @NamedNativeQuery compiled at startup.
+    /// </summary>
+    private static readonly Func<BankingDbContext, string, IAsyncEnumerable<BankAccount>>
+        _compiledGetByNumber = EF.CompileAsyncQuery(
+            (BankingDbContext ctx, string number) =>
+                ctx.BankAccounts.Where(a => a.AccountNumber == number));
+
+    /// <inheritdoc/>
+    public async Task<BankAccount?> GetByNumberCompiledAsync(string accountNumber)
+    {
+        // _compiledGetByNumber returns IAsyncEnumerable; we materialise the first hit.
+        await foreach (var account in _compiledGetByNumber(db, accountNumber))
+            return account;
+        return null;
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// FromSqlRaw executes hand-written SQL but still returns tracked entities, so
+    /// subsequent LINQ operators (Where, OrderBy, Include…) can be chained on top.
+    ///
+    /// IMPORTANT — always use parameterised placeholders ({0}, {1}, …) or
+    /// SqlParameter objects.  Never interpolate user values directly into the string
+    /// (that would be a SQL injection vulnerability).
+    ///
+    /// Java parallel: @Query(value = "SELECT * FROM …", nativeQuery = true)
+    /// </remarks>
+    public async Task<IReadOnlyList<BankAccount>> GetByRawSqlAsync(decimal minBalance)
+        => await db.BankAccounts
+               .FromSqlRaw(
+                   "SELECT * FROM BankAccounts WHERE Balance > {0} AND IsDeleted = 0",
+                   minBalance)
+               .OrderBy(a => a.AccountNumber)
+               .ToListAsync();
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Simulates a stored procedure call.  On SQL Server this would be:
+    ///   <code>FromSqlRaw("EXEC sp_GetAccountByNumber {0}", accountNumber)</code>
+    /// SQLite has no stored-procedure engine, so we write the equivalent raw SELECT
+    /// and document what the real SP call looks like.
+    ///
+    /// Java parallel: @Procedure("sp_GetAccountByNumber") or
+    ///   EntityManager.createNativeQuery("CALL sp_GetAccountByNumber(?)")
+    /// </remarks>
+    public async Task<BankAccount?> GetByNumberStoredProcAsync(string accountNumber)
+    {
+        // SQL Server equivalent: FromSqlRaw("EXEC sp_GetAccountByNumber {0}", accountNumber)
+        // SQLite fallback: equivalent parameterised SELECT
+        var results = await db.BankAccounts
+            .FromSqlRaw(
+                "SELECT * FROM BankAccounts WHERE AccountNumber = {0} AND IsDeleted = 0",
+                accountNumber)
+            .ToListAsync();
+        return results.FirstOrDefault();
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// AsSplitQuery instructs EF Core to use two separate SELECT statements instead of
+    /// a single JOIN.  Without it, including a collection navigation (Transactions) on
+    /// multiple parent rows produces a Cartesian product:
+    ///   2 accounts × 5 transactions = 10 rows transferred over the wire even though
+    ///   only 7 logical rows exist.  With large collections this "N×M explosion" can
+    ///   transfer orders of magnitude more data than needed.
+    ///
+    /// AsSplitQuery fires:
+    ///   1. SELECT * FROM BankAccounts
+    ///   2. SELECT * FROM Transactions WHERE BankAccountId IN (1, 2, …)
+    /// and EF Core stitches the results together in memory.
+    ///
+    /// Java parallel: @EntityGraph with fetch = SUBSELECT instead of JOIN.
+    /// </remarks>
+    public async Task<IReadOnlyList<BankAccount>> GetWithTransactionsSplitAsync()
+        => await db.BankAccounts
+               .Include(a => a.Transactions)
+               .AsSplitQuery()
+               .OrderBy(a => a.AccountNumber)
+               .ToListAsync();
 }

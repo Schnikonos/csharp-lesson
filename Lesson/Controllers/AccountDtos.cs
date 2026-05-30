@@ -85,3 +85,17 @@ public record PagedResult<T>(
     public bool HasNextPage => Page < TotalPages;
     public bool HasPreviousPage => Page > 1;
 };
+
+// ─── Lesson 04-C DTOs ─────────────────────────────────────────────────────────
+
+/// <summary>
+/// Lightweight projection of a <c>Transaction</c> row — used by the split-query
+/// and raw-SQL endpoints so that full entity graphs are never sent over the wire.
+/// </summary>
+public record TransactionSummaryDto(
+    int     Id,
+    string  Type,
+    decimal Amount,
+    string  Description,
+    DateTime OccurredAt
+);
