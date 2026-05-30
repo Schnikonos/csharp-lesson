@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Lesson.Data;
 
 /// <summary>
+/// Lesson 03-B — adds OwnsOne&lt;Address&gt; configuration.
 /// Lesson 03-A — EF Core DbContext.
 ///
 /// DbContext is the Unit-of-Work + Repository in one:
@@ -60,5 +61,11 @@ public class BankingDbContext(DbContextOptions<BankingDbContext> options) : DbCo
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
             }
         );
+
+        // Owned entity — Address columns live in the BankAccounts table.
+        // Java parallel: @Embeddable / @Embedded
+        // Column names default to "Address_Street", "Address_City", etc.
+        modelBuilder.Entity<BankAccount>()
+            .OwnsOne(a => a.Address);
     }
 }

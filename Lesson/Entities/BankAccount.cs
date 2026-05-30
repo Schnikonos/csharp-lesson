@@ -4,6 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace Lesson.Entities;
 
 /// <summary>
+/// Lesson 03-B — adds owned Address value object.
 /// Lesson 03-A — EF Core entity (code-first).
 ///
 /// Java parallel:
@@ -40,6 +41,10 @@ public class BankAccount
 
     public bool IsActive { get; set; } = true;
 
-    // Audit fields — kept simple for 03-A; full audit trail in 03-C.
+    // Audit fields — kept simple for 03-A/B; full audit trail in 03-C.
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // Owned value object — stored as columns in the same BankAccounts table.
+    // Java: @Embedded Address address;
+    public Address? Address { get; set; }
 }

@@ -1,45 +1,38 @@
-using Lesson.Data;
 using Lesson.Entities;
+using Lesson.Repositories;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Lesson.Controllers;
 
 /// <summary>
-/// Lesson 03-A — Full CRUD over BankAccount via EF Core.
+/// Lesson 03-B — refactored to use IAccountRepository.
 ///
-/// Endpoints:
-///   GET    /accounts          — list all accounts
-///   GET    /accounts/{id}     — get by primary key
-///   POST   /accounts          — create new account
-///   PUT    /accounts/{id}     — full update
-///   DELETE /accounts/{id}     — hard delete (soft delete in 03-C)
+/// The controller no longer depends on BankingDbContext directly.
+/// It talks to IAccountRepository, which hides EF Core details.
+/// This makes the controller unit-testable by swapping in a fake repository.
+///
+/// New features vs 03-A:
+///   - GET /accounts?type=Checking  — IQueryable filter delegated to repository
+///   - Address (owned entity) included in create / update / response
 ///
 /// Java parallel:
 ///   @RestController + @RequestMapping("/accounts")
-///   @Autowired AccountRepository  →  injected BankingDbContext
-///   repository.findAll()          →  dbContext.BankAccounts.ToListAsync()
-///   repository.findById(id)       →  dbContext.BankAccounts.FindAsync(id)
-///   repository.save(entity)       →  dbContext.Add(entity) + SaveChangesAsync()
-///   repository.delete(entity)     →  dbContext.Remove(entity) + SaveChangesAsync()
+///   @Autowired AccountRepository repo  →  injected IAccountRepository
 /// </summary>
 [ApiController]
 [Route("accounts")]
-public class AccountsController(BankingDbContext db) : ControllerBase
+public class AccountsController(IAccountRepository repo) : ControllerBase
 {
     // -------------------------------------------------------------------------
-    // GET /accounts
-    // Java: @GetMapping / repository.findAll()
+    // GET /accounts?type={accountType}
+    // Java: @GetMapping / repository.findAll() or repository.findByAccountType(type)
     // -------------------------------------------------------------------------
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<AccountResponse>>> GetAll()
+    public async Task<ActionResult<IEnumerable<AccountResponse>>> GetAll(
+        [FromQuery] string? type = null)
     {
-        var accounts = await db.BankAccounts
-            .OrderBy(a => a.Id)
-            .Select(a => ToResponse(a))
-            .ToListAsync();
-
-        return Ok(accounts);
+        var accounts = await repo.GetAllAsync(type);
+        return Ok(accounts.Select(ToResponse));
     }
 
     // -------------------------------------------------------------------------
@@ -49,8 +42,7 @@ public class AccountsController(BankingDbContext db) : ControllerBase
     [HttpGet("{id:int}")]
     public async Task<ActionResult<AccountResponse>> GetById(int id)
     {
-        // FindAsync looks up by PK — uses identity cache first, then DB.
-        var account = await db.BankAccounts.FindAsync(id);
+        var account = await repo.GetByIdAsync(id);
         if (account is null)
             return NotFound(new { Error = $"Account {id} not found." });
 
@@ -64,8 +56,7 @@ public class AccountsController(BankingDbContext db) : ControllerBase
     [HttpPost]
     public async Task<ActionResult<AccountResponse>> Create(CreateAccountRequest request)
     {
-        // Check for duplicate account number
-        if (await db.BankAccounts.AnyAsync(a => a.AccountNumber == request.AccountNumber))
+        if (await repo.ExistsAsync(request.AccountNumber))
             return Conflict(new { Error = $"Account number '{request.AccountNumber}' already exists." });
 
         var account = new BankAccount
@@ -75,37 +66,33 @@ public class AccountsController(BankingDbContext db) : ControllerBase
             AccountType   = request.AccountType,
             Balance       = request.InitialBalance,
             IsActive      = true,
-            CreatedAt     = DateTime.UtcNow
+            CreatedAt     = DateTime.UtcNow,
+            Address       = ToAddress(request.Address)
         };
 
-        // Add tracks the entity as Added; SaveChangesAsync issues INSERT + returns the generated Id.
-        db.BankAccounts.Add(account);
-        await db.SaveChangesAsync();
+        await repo.AddAsync(account);
 
-        // 201 Created with Location header pointing to the new resource.
         return CreatedAtAction(nameof(GetById), new { id = account.Id }, ToResponse(account));
     }
 
     // -------------------------------------------------------------------------
     // PUT /accounts/{id}
-    // Full replacement update (PATCH / partial update is in 03-B).
     // Java: @PutMapping("/{id}") / repository.save(existingEntity)
     // -------------------------------------------------------------------------
     [HttpPut("{id:int}")]
     public async Task<ActionResult<AccountResponse>> Update(int id, UpdateAccountRequest request)
     {
-        var account = await db.BankAccounts.FindAsync(id);
+        var account = await repo.GetByIdAsync(id);
         if (account is null)
             return NotFound(new { Error = $"Account {id} not found." });
 
-        // EF Core tracks all scalar property changes automatically.
-        // Calling SaveChangesAsync() issues UPDATE only for changed columns.
         account.OwnerName   = request.OwnerName;
         account.AccountType = request.AccountType;
         account.Balance     = request.Balance;
         account.IsActive    = request.IsActive;
+        account.Address     = ToAddress(request.Address);
 
-        await db.SaveChangesAsync();
+        await repo.UpdateAsync(account);
 
         return Ok(ToResponse(account));
     }
@@ -118,17 +105,27 @@ public class AccountsController(BankingDbContext db) : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var account = await db.BankAccounts.FindAsync(id);
+        var account = await repo.GetByIdAsync(id);
         if (account is null)
             return NotFound(new { Error = $"Account {id} not found." });
 
-        db.BankAccounts.Remove(account);
-        await db.SaveChangesAsync();
+        await repo.DeleteAsync(account);
 
         return NoContent();
     }
 
-    // ── Mapping helper ────────────────────────────────────────────────────────
+    // ── Mapping helpers ───────────────────────────────────────────────────────
     private static AccountResponse ToResponse(BankAccount a) => new(
-        a.Id, a.AccountNumber, a.OwnerName, a.AccountType, a.Balance, a.IsActive, a.CreatedAt);
+        a.Id, a.AccountNumber, a.OwnerName, a.AccountType, a.Balance, a.IsActive, a.CreatedAt,
+        a.Address is null ? null : new AddressDto(
+            a.Address.Street, a.Address.City, a.Address.PostalCode, a.Address.Country));
+
+    private static Entities.Address? ToAddress(AddressDto? dto) =>
+        dto is null ? null : new Entities.Address
+        {
+            Street     = dto.Street,
+            City       = dto.City,
+            PostalCode = dto.PostalCode,
+            Country    = dto.Country
+        };
 }

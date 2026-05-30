@@ -1,4 +1,10 @@
 // =============================================================================
+// LESSON 03-B: Repository Pattern, IQueryable vs IEnumerable, Owned Entities
+// (builds on 03-A EF Core baseline)
+//
+// New registrations:
+//   IAccountRepository ? AccountRepository (Scoped)
+// =============================================================================
 // LESSON 03-A: EF Core CRUD — DbContext, SQLite, Migrations
 //
 // Entity Framework Core is .NET's official ORM.
@@ -21,6 +27,7 @@
 using Lesson.Configuration;
 using Lesson.Data;
 using Lesson.Options;
+using Lesson.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -70,6 +77,10 @@ builder.Services.AddDbContext<BankingDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("BankDb")
         ?? "Data Source=bank.db"));
 
+// ----- 03-B: Repository registration -----
+// IAccountRepository is Scoped (same lifetime as DbContext it wraps).
+builder.Services.AddScoped<IAccountRepository, AccountRepository>();
+
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
@@ -92,27 +103,3 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();
-
-// ----- Options from 02-B (unchanged) -----
-builder.Services
-    .AddOptions<BankOptions>()
-    .BindConfiguration(BankOptions.SectionName)
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
-
-builder.Services
-    .AddOptions<FeatureFlagOptions>()
-    .BindConfiguration(FeatureFlagOptions.SectionName);
-
-// ----- 02-C: Connection strings (User Secrets / env-var) -----
-// In Development, BankDb is loaded from User Secrets (set with dotnet user-secrets).
-// In Production, set the env-var:  ConnectionStrings__BankDb=Server=prod;...
-builder.Services
-    .AddOptions<ConnectionStringOptions>()
-    .BindConfiguration(ConnectionStringOptions.SectionName)
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
-
-
-
-

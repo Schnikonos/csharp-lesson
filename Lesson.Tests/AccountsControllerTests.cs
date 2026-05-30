@@ -12,15 +12,14 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Lesson.Tests;
 
 /// <summary>
-/// Integration tests for Lesson 03-A: EF Core CRUD via AccountsController.
+/// Lesson 03-B — integration tests for AccountsController.
 ///
-/// Strategy:
-///   - Open a single SqliteConnection per test and keep it alive for the
-///     entire test duration. SQLite in-memory databases are tied to the
-///     connection lifetime — closing all connections wipes the DB.
-///   - Pass that same open connection to AddDbContext so all scopes
-///     (startup MigrateAsync + request handlers) share the same DB.
-///   - WebApplicationFactory starts the full ASP.NET Core pipeline.
+/// Covers 03-A CRUD + 03-B additions:
+///   - GET /accounts?type= filter (IQueryable composition)
+///   - Address (owned entity) round-trip on create and update
+///
+/// Test strategy: one shared SqliteConnection per test class instance keeps
+/// the in-memory database alive across startup MigrateAsync() and HTTP requests.
 /// </summary>
 public class AccountsControllerTests : IDisposable
 {
@@ -32,23 +31,20 @@ public class AccountsControllerTests : IDisposable
 
     public AccountsControllerTests()
     {
-        // Keep one connection open — in-memory DB lives as long as this connection.
         _connection = new SqliteConnection("Data Source=:memory:");
         _connection.Open();
 
         _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(host =>
             host.ConfigureServices(services =>
             {
-                // Replace the real SQLite registration with our shared in-memory connection.
-                var descriptor = services.SingleOrDefault(
-                    d => d.ServiceType == typeof(DbContextOptions<BankingDbContext>));
-                if (descriptor is not null) services.Remove(descriptor);
+                var d = services.SingleOrDefault(
+                    s => s.ServiceType == typeof(DbContextOptions<BankingDbContext>));
+                if (d is not null) services.Remove(d);
 
-                services.AddDbContext<BankingDbContext>(options =>
-                    options.UseSqlite(_connection));
+                services.AddDbContext<BankingDbContext>(o => o.UseSqlite(_connection));
             }));
 
-        // CreateClient() triggers host startup → MigrateAsync() runs on our in-memory DB.
+        // Triggers app startup → MigrateAsync() seeds the in-memory DB.
         _client = _factory.CreateClient();
     }
 
@@ -59,9 +55,8 @@ public class AccountsControllerTests : IDisposable
         _connection.Dispose();
     }
 
-    // -------------------------------------------------------------------------
-    // GET /accounts — list
-    // -------------------------------------------------------------------------
+    // ─── 03-A: basic CRUD ────────────────────────────────────────────────────
+
     [Fact]
     public async Task GetAll_ReturnsSeededAccounts()
     {
@@ -74,9 +69,6 @@ public class AccountsControllerTests : IDisposable
         body.Should().Contain(a => a.AccountNumber == "ACC-0001");
     }
 
-    // -------------------------------------------------------------------------
-    // GET /accounts/{id} — found
-    // -------------------------------------------------------------------------
     [Fact]
     public async Task GetById_ExistingId_ReturnsAccount()
     {
@@ -88,9 +80,6 @@ public class AccountsControllerTests : IDisposable
         body.OwnerName.Should().Be("Alice Dupont");
     }
 
-    // -------------------------------------------------------------------------
-    // GET /accounts/{id} — not found
-    // -------------------------------------------------------------------------
     [Fact]
     public async Task GetById_MissingId_ReturnsNotFound()
     {
@@ -99,9 +88,6 @@ public class AccountsControllerTests : IDisposable
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
-    // -------------------------------------------------------------------------
-    // POST /accounts — create
-    // -------------------------------------------------------------------------
     [Fact]
     public async Task Create_ValidRequest_ReturnsCreated()
     {
@@ -117,9 +103,6 @@ public class AccountsControllerTests : IDisposable
         body.Id.Should().BeGreaterThan(0);
     }
 
-    // -------------------------------------------------------------------------
-    // POST /accounts — duplicate account number
-    // -------------------------------------------------------------------------
     [Fact]
     public async Task Create_DuplicateAccountNumber_ReturnsConflict()
     {
@@ -129,9 +112,6 @@ public class AccountsControllerTests : IDisposable
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 
-    // -------------------------------------------------------------------------
-    // PUT /accounts/{id} — update
-    // -------------------------------------------------------------------------
     [Fact]
     public async Task Update_ExistingAccount_ReturnsUpdatedData()
     {
@@ -145,13 +125,10 @@ public class AccountsControllerTests : IDisposable
         body.Balance.Should().Be(99999m);
     }
 
-    // -------------------------------------------------------------------------
-    // DELETE /accounts/{id}
-    // -------------------------------------------------------------------------
     [Fact]
     public async Task Delete_ExistingAccount_ReturnsNoContent()
     {
-        // First create a fresh account so delete doesn't affect other tests
+        // Create a dedicated account so this test is independent.
         var create = await _client.PostAsJsonAsync("/accounts",
             new CreateAccountRequest("ACC-DEL-001", "To Delete", "Checking", 0m));
         var created = await create.Content.ReadFromJsonAsync<AccountResponse>(JsonOpts);
@@ -161,5 +138,91 @@ public class AccountsControllerTests : IDisposable
 
         var getResponse = await _client.GetAsync($"/accounts/{created.Id}");
         getResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    // ─── 03-B: IQueryable filter ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Demonstrates IQueryable composition: the type filter becomes a SQL WHERE clause,
+    /// not an in-memory loop. Only matching rows are fetched from the database.
+    /// </summary>
+    [Fact]
+    public async Task GetAll_FilterByType_ReturnsOnlyMatchingAccounts()
+    {
+        // Seed both types exist (ACC-0001 = Checking, ACC-0002 = Savings).
+        var response = await _client.GetAsync("/accounts?type=Savings");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<List<AccountResponse>>(JsonOpts);
+        body.Should().NotBeNull();
+        body!.Should().OnlyContain(a => a.AccountType == "Savings");
+        body.Should().NotContain(a => a.AccountType == "Checking");
+    }
+
+    [Fact]
+    public async Task GetAll_FilterByType_UnknownType_ReturnsEmptyList()
+    {
+        var response = await _client.GetAsync("/accounts?type=Unknown");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<List<AccountResponse>>(JsonOpts);
+        body.Should().NotBeNull().And.BeEmpty();
+    }
+
+    // ─── 03-B: Owned entity (Address) ────────────────────────────────────────
+
+    /// <summary>
+    /// Creates an account with an Address and verifies it round-trips through the API.
+    /// The address columns are stored in the BankAccounts table (no join needed).
+    /// </summary>
+    [Fact]
+    public async Task Create_WithAddress_AddressRoundTrips()
+    {
+        var address = new AddressDto("12 Rue de la Paix", "Paris", "75001", "France");
+        var request = new CreateAccountRequest("ACC-ADDR-001", "Marie Curie", "Savings", 5000m, address);
+
+        var response = await _client.PostAsJsonAsync("/accounts", request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var body = await response.Content.ReadFromJsonAsync<AccountResponse>(JsonOpts);
+        body!.Address.Should().NotBeNull();
+        body.Address!.Street.Should().Be("12 Rue de la Paix");
+        body.Address.City.Should().Be("Paris");
+        body.Address.PostalCode.Should().Be("75001");
+        body.Address.Country.Should().Be("France");
+    }
+
+    [Fact]
+    public async Task Update_WithAddress_AddressIsPersisted()
+    {
+        // First create without address, then update to add one.
+        var create = await _client.PostAsJsonAsync("/accounts",
+            new CreateAccountRequest("ACC-ADDR-002", "Test User", "Checking", 0m));
+        var created = await create.Content.ReadFromJsonAsync<AccountResponse>(JsonOpts);
+
+        var updateRequest = new UpdateAccountRequest(
+            "Test User",
+            "Checking",
+            0m,
+            true,
+            new AddressDto("1 Main St", "Lyon", "69001", "France"));
+
+        var update = await _client.PutAsJsonAsync($"/accounts/{created!.Id}", updateRequest);
+
+        update.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await update.Content.ReadFromJsonAsync<AccountResponse>(JsonOpts);
+        body!.Address.Should().NotBeNull();
+        body.Address!.City.Should().Be("Lyon");
+    }
+
+    [Fact]
+    public async Task Create_WithoutAddress_AddressIsNull()
+    {
+        var request = new CreateAccountRequest("ACC-NOADDR-001", "No Address User", "Checking", 100m);
+        var response = await _client.PostAsJsonAsync("/accounts", request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var body = await response.Content.ReadFromJsonAsync<AccountResponse>(JsonOpts);
+        body!.Address.Should().BeNull();
     }
 }
