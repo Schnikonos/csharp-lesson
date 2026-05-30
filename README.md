@@ -1,133 +1,154 @@
-﻿# Lesson 03-B — Repository Pattern, IQueryable vs IEnumerable, Owned Entities
+﻿# Lesson 03-C — Unit of Work, Optimistic Concurrency, Soft Delete & Audit Fields
 
-> **Branch:** `lesson/03-ef-crud/b-intermediate`
-> **Prerequisites:** Lesson 03-A (DbContext, basic CRUD, migrations)
+> **Branch:** `lesson/03-ef-crud/c-advanced`
+> **Prerequisites:** Lesson 03-B (Repository pattern, IQueryable, owned entities)
 
 ---
 
 ## What you will learn
 
-| Topic | C# / ASP.NET Core | Java / Spring Boot parallel |
+| Topic | C# / EF Core | Java / Spring Boot parallel |
 |---|---|---|
-| Repository pattern | `IAccountRepository` + `AccountRepository` | `@Repository` interface + `JpaRepository` |
-| IQueryable composition | `.Where()` before `.ToListAsync()` = SQL WHERE | Spring Data `Specification<T>` |
-| IEnumerable pitfall | `.ToList()` early = all rows loaded, then filtered in C# | `findAll()` + stream filter |
-| Owned entities | `OwnsOne<Address>()` — columns in the same table | `@Embeddable` / `@Embedded` in JPA |
-| Value objects | `Address` with no identity of its own | JPA `@Embeddable` class |
+| Unit of Work | `IUnitOfWork` + single `CommitAsync()` | `@Transactional` on a service method |
+| Optimistic concurrency | `[Timestamp]` / `RowVersion` + `DbUpdateConcurrencyException` | `@Version` + `ObjectOptimisticLockingFailureException` |
+| Soft delete | `IsDeleted` flag + `HasQueryFilter` | `@SQLDelete` + `@Where` |
+| Global query filter | `modelBuilder.Entity<T>().HasQueryFilter(...)` | Hibernate `@Filter` / `@Where` |
+| Audit fields | `SaveChangesAsync` override stamps `CreatedAt`, `UpdatedAt`, `UpdatedBy` | `@PrePersist` / `@LastModifiedDate` / `@LastModifiedBy` |
 
 ---
 
-## 1. Repository Pattern
+## 1. Unit of Work
 
-The repository pattern inserts a named interface between the controller and the database.
-The controller declares *what* it needs; the concrete class decides *how* EF Core satisfies it.
+`DbContext` itself is an implementation of the Unit of Work pattern, but it is useful to wrap
+it in an explicit `IUnitOfWork` so that:
 
-```
-Controller  -->  IAccountRepository  <--  AccountRepository (wraps BankingDbContext)
-```
-
-**Why bother?**
-- The controller can be unit-tested with a fake repository — no database required.
-- All EF Core details (`DbSet`, `SaveChangesAsync`) are encapsulated in one class.
-- Switching the storage backend (e.g. SQLite to PostgreSQL) needs no controller changes.
-
-**Java parallel:** a `@Repository` interface extending `JpaRepository<BankAccount, Integer>`.
+- The controller calls `CommitAsync()` once at the end — one SQL transaction boundary.
+- Multiple repositories can participate in the same transaction without each calling `SaveChangesAsync`.
+- The seam between controller and persistence is explicit and easily mockable in unit tests.
 
 ```csharp
-// Interface — what the controller sees
-public interface IAccountRepository
+// IUnitOfWork.cs
+public interface IUnitOfWork : IDisposable
 {
-    Task<IReadOnlyList<BankAccount>> GetAllAsync(string? accountType = null);
-    Task<BankAccount?> GetByIdAsync(int id);
-    Task<bool> ExistsAsync(string accountNumber);
-    Task<BankAccount> AddAsync(BankAccount account);
-    Task UpdateAsync(BankAccount account);
-    Task DeleteAsync(BankAccount account);
+    IAccountRepository Accounts { get; }
+    Task<int> CommitAsync(CancellationToken cancellationToken = default);
 }
 
-// Registration in Program.cs — same Scoped lifetime as DbContext
+// Registration in Program.cs (Scoped — same lifetime as DbContext)
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
-// Constructor injection in the controller
-public class AccountsController(IAccountRepository repo) : ControllerBase { }
+// Controller injects IUnitOfWork instead of the repository directly
+public class AccountsController(IUnitOfWork uow) : ControllerBase
+{
+    [HttpPost]
+    public async Task<IActionResult> Create(CreateAccountRequest req)
+    {
+        await uow.Accounts.AddAsync(new BankAccount { ... });
+        await uow.CommitAsync(); // single SaveChangesAsync call
+        return Created(...);
+    }
+}
 ```
+
+**Java parallel:** a `@Service` method annotated `@Transactional` creates a single
+`EntityManager` / persistence context; all repository calls inside it share that context
+and are committed when the method returns.
 
 ---
 
-## 2. IQueryable vs IEnumerable
+## 2. Optimistic Concurrency with RowVersion
 
-This is one of the most important EF Core distinctions for a Java developer to internalise.
-
-### IQueryable — the query is SQL
-
-`IQueryable<T>` holds an *expression tree*. EF Core translates every `.Where()`, `.OrderBy()`,
-and `.Select()` you chain onto it into SQL clauses. The database executes the query;
-only matching rows travel over the wire.
+Optimistic concurrency assumes conflicts are rare. Instead of locking the row, EF Core reads a
+version token and includes it in every `UPDATE` / `DELETE` WHERE clause. If another transaction
+has already changed the row, the WHERE finds no row, EF Core throws `DbUpdateConcurrencyException`,
+and the application returns HTTP 409 Conflict.
 
 ```csharp
-// SQL produced: SELECT * FROM BankAccounts WHERE AccountType = 'Savings' ORDER BY AccountNumber
-IQueryable<BankAccount> query = db.BankAccounts;
+// BankAccount.cs
+[Timestamp] // EF Core maps this as a row-version concurrency token
+public byte[] RowVersion { get; set; } = [];
 
-if (!string.IsNullOrWhiteSpace(accountType))
-    query = query.Where(a => a.AccountType == accountType); // adds WHERE — no DB call yet
-
-return await query.OrderBy(a => a.AccountNumber).ToListAsync(); // ONE round-trip to DB
+// AccountsController.cs — catch the exception on PUT
+try
+{
+    await uow.CommitAsync();
+}
+catch (DbUpdateConcurrencyException)
+{
+    return Conflict(new { Error = "The account was modified by another request. Please reload and retry." });
+}
 ```
-
-### IEnumerable — data is already in C# memory
-
-Calling `.ToListAsync()` (or `.AsEnumerable()`) materialises all rows immediately.
-Any further LINQ runs as a C# loop over the loaded objects — not as SQL.
-
-```csharp
-// LOADS ALL ROWS, then filters in C# — avoid this pattern
-IEnumerable<BankAccount> all = await db.BankAccounts.ToListAsync();
-var filtered = all.Where(a => a.AccountType == accountType); // C# in-memory, no SQL filter
-```
-
-**Rule:** keep the query as `IQueryable<T>` and only materialise it (via `ToListAsync`,
-`FirstOrDefaultAsync`, etc.) at the last possible moment.
 
 **Java parallel:**
-- `IQueryable` composition ≈ Spring Data `Specification<T>` or a derived query method building.
-- Early `.AsEnumerable()` ≈ calling `findAll()` and then `.stream().filter(...)` in Java.
+```java
+@Version
+private byte[] rowVersion;
+// Spring Data throws ObjectOptimisticLockingFailureException on conflict
+```
 
 ---
 
-## 3. Owned Entities (Value Objects)
+## 3. Soft Delete + Global Query Filter
 
-An owned entity has no independent identity. EF Core stores it in the **same table**
-as its owner — no join, no FK to a separate table, no `Id` column of its own.
+Instead of issuing a SQL `DELETE`, a soft delete sets `IsDeleted = true`. A **global query filter**
+then automatically appends `WHERE IsDeleted = 0` to every LINQ query on that entity type.
 
 ```csharp
-// Value object — notice: no Id
-public class Address
-{
-    public string Street     { get; set; } = string.Empty;
-    public string City       { get; set; } = string.Empty;
-    public string PostalCode { get; set; } = string.Empty;
-    public string Country    { get; set; } = string.Empty;
-}
+// OnModelCreating — one line activates the filter everywhere
+modelBuilder.Entity<BankAccount>()
+    .HasQueryFilter(a => !a.IsDeleted);
 
-// Owner
-public class BankAccount
+// Repository — regular queries are filtered automatically
+public async Task<IReadOnlyList<BankAccount>> GetAllAsync(...)
+    => await db.BankAccounts           // global filter applied
+               .Where(...)
+               .ToListAsync();
+
+// Repository — bypass the filter to see deleted rows
+public async Task<IReadOnlyList<BankAccount>> GetDeletedAsync()
+    => await db.BankAccounts
+               .IgnoreQueryFilters()   // bypass IsDeleted filter
+               .Where(a => a.IsDeleted)
+               .ToListAsync();
+
+// Soft delete — just set the flag; CommitAsync() persists it
+public Task SoftDeleteAsync(BankAccount a) { a.IsDeleted = true; return Task.CompletedTask; }
+```
+
+**Java parallel:** `@SQLDelete(sql = "UPDATE bank_accounts SET is_deleted=true WHERE id=?")` +
+`@Where(clause = "is_deleted=false")` on the entity class.
+
+---
+
+## 4. Audit Fields via SaveChangesAsync Override
+
+`BankingDbContext` overrides `SaveChangesAsync` to inspect the EF Core change tracker and stamp
+`CreatedAt` / `UpdatedAt` / `UpdatedBy` automatically on every save — no controller code needed.
+
+```csharp
+public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
 {
-    // ...
-    public Address? Address { get; set; } // null = no address on file
+    var now = DateTime.UtcNow;
+
+    foreach (var entry in ChangeTracker.Entries<BankAccount>())
+    {
+        if (entry.State == EntityState.Added)
+            entry.Entity.CreatedAt = now;
+
+        if (entry.State is EntityState.Added or EntityState.Modified)
+        {
+            entry.Entity.UpdatedAt  = now;
+            entry.Entity.UpdatedBy ??= "system"; // replace with current user in real apps
+        }
+    }
+
+    return base.SaveChangesAsync(cancellationToken);
 }
 ```
 
-Configure with the Fluent API in `OnModelCreating`:
-
-```csharp
-// Columns Address_Street, Address_City, Address_PostalCode, Address_Country
-// are added directly to the BankAccounts table.
-modelBuilder.Entity<BankAccount>().OwnsOne(a => a.Address);
-```
-
-A new `AddOwnedAddress` migration adds the four columns — no `Addresses` table is created.
-
-**Java parallel:** `@Embeddable` class + `@Embedded` field on the owning `@Entity`.
+**Java parallel:** `@PrePersist` / `@PreUpdate` lifecycle callbacks on the entity, or Spring Data's
+`@CreatedDate` / `@LastModifiedDate` / `@LastModifiedBy` with an `AuditorAware<String>` bean.
 
 ---
 
@@ -135,12 +156,14 @@ A new `AddOwnedAddress` migration adds the four columns — no `Addresses` table
 
 | Method | Route | Notes |
 |--------|-------|-------|
-| `GET` | `/accounts` | All accounts, ordered by `AccountNumber` |
-| `GET` | `/accounts?type=Savings` | IQueryable filter — one SQL WHERE clause |
+| `GET` | `/accounts` | Non-deleted accounts (global filter active) |
+| `GET` | `/accounts?type=Savings` | IQueryable filter + soft-delete filter |
+| `GET` | `/accounts/deleted` | Soft-deleted rows (`IgnoreQueryFilters`) |
 | `GET` | `/accounts/{id}` | 200 / 404 |
-| `POST` | `/accounts` | Optional `address` in body; 201 / 409 |
-| `PUT` | `/accounts/{id}` | Optional `address` in body; 200 / 404 |
-| `DELETE` | `/accounts/{id}` | 204 / 404 |
+| `POST` | `/accounts` | Creates; audit fields stamped automatically |
+| `PUT` | `/accounts/{id}` | Updates; 409 on concurrency conflict |
+| `DELETE` | `/accounts/{id}` | **Soft** delete (sets `IsDeleted = true`) |
+| `POST` | `/accounts/{id}/restore` | Restores a soft-deleted account |
 
 ---
 
@@ -149,20 +172,22 @@ A new `AddOwnedAddress` migration adds the four columns — no `Addresses` table
 ```
 Lesson/
   Entities/
-    Address.cs                    NEW  owned value object
-    BankAccount.cs                     + Address? property
+    BankAccount.cs          + RowVersion, IsDeleted, UpdatedAt, UpdatedBy
+  UnitOfWork/
+    IUnitOfWork.cs          NEW  Unit of Work interface
+    UnitOfWork.cs           NEW  implementation backed by BankingDbContext
   Repositories/
-    IAccountRepository.cs         NEW  interface
-    AccountRepository.cs          NEW  EF Core implementation (IQueryable demo inside)
+    IAccountRepository.cs   + GetDeletedAsync, SoftDeleteAsync, RestoreAsync
+    AccountRepository.cs    + IgnoreQueryFilters, soft-delete helpers; SaveChanges removed
   Data/
-    BankingDbContext.cs                 + OwnsOne<Address> in OnModelCreating
+    BankingDbContext.cs      + HasQueryFilter + SaveChangesAsync audit override
     Migrations/
-      AddOwnedAddress.cs          NEW  adds Address_* columns to BankAccounts
+      AddAdvancedFields      NEW  adds RowVersion, IsDeleted, UpdatedAt, UpdatedBy columns
   Controllers/
-    AccountDtos.cs                     + AddressDto; Address added to request/response
-    AccountsController.cs              injects IAccountRepository; adds ?type filter
+    AccountDtos.cs           + UpdatedAt, UpdatedBy fields on AccountResponse
+    AccountsController.cs    injects IUnitOfWork; soft-delete / restore / concurrency handling
 Lesson.Tests/
-  AccountsControllerTests.cs          12 integration tests (was 7)
+  AccountsControllerTests.cs  + 3 new 03-C tests (15 total)
 ```
 
 ---
@@ -171,30 +196,34 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~AccountsControllerTests"
-# 12 tests — all pass
+# 15 tests — all pass
 ```
 
 | Test | What it verifies |
 |---|---|
-| `GetAll_ReturnsSeededAccounts` | List returns at least the 2 seeded rows |
+| `GetAll_ReturnsSeededAccounts` | List returns seeded rows |
 | `GetById_ExistingId_ReturnsAccount` | Correct entity for seed id=1 |
 | `GetById_MissingId_ReturnsNotFound` | 404 for unknown id |
 | `Create_ValidRequest_ReturnsCreated` | 201 + Location header + populated id |
 | `Create_DuplicateAccountNumber_ReturnsConflict` | 409 on duplicate account number |
 | `Update_ExistingAccount_ReturnsUpdatedData` | 200 + updated fields |
 | `Delete_ExistingAccount_ReturnsNoContent` | 204 + subsequent GET = 404 |
-| `GetAll_FilterByType_ReturnsOnlyMatchingAccounts` | `?type=Savings` excludes Checking rows |
-| `GetAll_FilterByType_UnknownType_ReturnsEmptyList` | `?type=Unknown` returns `[]` |
-| `Create_WithAddress_AddressRoundTrips` | Address persisted and returned in response |
-| `Update_WithAddress_AddressIsPersisted` | Address can be set via PUT |
+| `GetAll_FilterByType_ReturnsOnlyMatchingAccounts` | `?type=Savings` SQL filter |
+| `GetAll_FilterByType_UnknownType_ReturnsEmptyList` | Unknown type returns `[]` |
+| `Create_WithAddress_AddressRoundTrips` | Owned Address persisted & returned |
+| `Update_WithAddress_AddressIsPersisted` | Address can be added via PUT |
 | `Create_WithoutAddress_AddressIsNull` | `address` is null when not provided |
+| `Create_SetsAuditFields` ⭐ | `UpdatedAt` and `UpdatedBy` stamped on insert |
+| `Delete_SoftDeletes_HiddenFromGetAll` ⭐ | Soft-deleted row hidden; visible via `/deleted` |
+| `Restore_MakesAccountVisibleAgain` ⭐ | Restored account is visible in `GET /accounts/{id}` |
 
 ---
 
 ## Exercises
 
-1. Add `GET /accounts?minBalance=1000` — compose a second `IQueryable` filter for balance.
-2. Expose `GET /accounts/by-number/{accountNumber}` using `SingleOrDefaultAsync` in the repository.
-3. Add an `IAddressRepository` just for address lookups to explore repository decomposition.
-4. Replace `OwnsOne` with `OwnsMany` and give each `BankAccount` a list of `PhoneNumber` value objects.
+1. Pass the current user name from `IHttpContextAccessor` to `UpdatedBy` in the `SaveChangesAsync` override.
+2. Add `DELETE /accounts/{id}/hard` that performs a real SQL `DELETE` — compare with soft delete.
+3. Simulate a concurrency conflict in a test: load the same entity twice, update both, commit the second one, and assert HTTP 409.
+4. Add a `CreatedBy` audit field that is set only on insert (never overwritten).
+5. Extend the global query filter to also exclude inactive accounts (`IsActive = false`) and verify with a test.
 

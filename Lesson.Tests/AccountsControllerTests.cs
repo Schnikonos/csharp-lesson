@@ -225,4 +225,66 @@ public class AccountsControllerTests : IDisposable
         var body = await response.Content.ReadFromJsonAsync<AccountResponse>(JsonOpts);
         body!.Address.Should().BeNull();
     }
+
+    // ─── 03-C: Audit fields ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// SaveChangesAsync override stamps UpdatedAt/UpdatedBy on every Add/Modify.
+    /// Java parallel: @PrePersist / @LastModifiedDate lifecycle hooks.
+    /// </summary>
+    [Fact]
+    public async Task Create_SetsAuditFields()
+    {
+        var before = DateTime.UtcNow.AddSeconds(-1);
+        var response = await _client.PostAsJsonAsync("/accounts",
+            new CreateAccountRequest("ACC-AUDIT-001", "Audit User", "Checking", 0m));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var body = await response.Content.ReadFromJsonAsync<AccountResponse>(JsonOpts);
+        body!.UpdatedAt.Should().BeAfter(before);
+        body.UpdatedBy.Should().Be("system");
+    }
+
+    // ─── 03-C: Soft delete + restore ─────────────────────────────────────────
+
+    /// <summary>
+    /// DELETE soft-deletes the row; subsequent GET returns 404 (hidden by global filter).
+    /// GET /accounts/deleted exposes the soft-deleted row.
+    /// Java parallel: @SQLDelete + @Where on the entity class.
+    /// </summary>
+    [Fact]
+    public async Task Delete_SoftDeletes_HiddenFromGetAll()
+    {
+        var create = await _client.PostAsJsonAsync("/accounts",
+            new CreateAccountRequest("ACC-SOFT-001", "Soft Delete User", "Checking", 0m));
+        var created = await create.Content.ReadFromJsonAsync<AccountResponse>(JsonOpts);
+
+        var deleteResp = await _client.DeleteAsync($"/accounts/{created!.Id}");
+        deleteResp.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        // Global filter hides the row from regular queries.
+        var getResp = await _client.GetAsync($"/accounts/{created.Id}");
+        getResp.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        // Row still exists in the deleted list (bypasses global filter).
+        var deletedResp = await _client.GetAsync("/accounts/deleted");
+        deletedResp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var deletedList = await deletedResp.Content.ReadFromJsonAsync<List<AccountResponse>>(JsonOpts);
+        deletedList.Should().Contain(a => a.Id == created.Id);
+    }
+
+    [Fact]
+    public async Task Restore_MakesAccountVisibleAgain()
+    {
+        var create = await _client.PostAsJsonAsync("/accounts",
+            new CreateAccountRequest("ACC-RESTORE-001", "Restore User", "Checking", 0m));
+        var created = await create.Content.ReadFromJsonAsync<AccountResponse>(JsonOpts);
+        await _client.DeleteAsync($"/accounts/{created!.Id}");
+
+        var restoreResp = await _client.PostAsync($"/accounts/{created.Id}/restore", null);
+        restoreResp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var getResp = await _client.GetAsync($"/accounts/{created.Id}");
+        getResp.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
 }

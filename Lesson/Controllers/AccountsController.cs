@@ -1,62 +1,61 @@
 using Lesson.Entities;
-using Lesson.Repositories;
+using Lesson.UnitOfWork;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Lesson.Controllers;
 
 /// <summary>
-/// Lesson 03-B — refactored to use IAccountRepository.
+/// Lesson 03-C — uses IUnitOfWork; soft delete + restore; optimistic concurrency.
+/// Lesson 03-B — IAccountRepository; IQueryable filter; owned Address.
 ///
-/// The controller no longer depends on BankingDbContext directly.
-/// It talks to IAccountRepository, which hides EF Core details.
-/// This makes the controller unit-testable by swapping in a fake repository.
+/// New endpoints vs 03-B:
+///   GET  /accounts/deleted          — list soft-deleted accounts
+///   POST /accounts/{id}/restore     — restore a soft-deleted account
+///   DELETE /accounts/{id}           — soft delete (sets IsDeleted = true)
 ///
-/// New features vs 03-A:
-///   - GET /accounts?type=Checking  — IQueryable filter delegated to repository
-///   - Address (owned entity) included in create / update / response
-///
-/// Java parallel:
-///   @RestController + @RequestMapping("/accounts")
-///   @Autowired AccountRepository repo  →  injected IAccountRepository
+/// Optimistic concurrency:
+///   If two requests modify the same row simultaneously, the second one gets a
+///   DbUpdateConcurrencyException because the RowVersion no longer matches.
+///   We catch it and return HTTP 409 Conflict — the client must reload and retry.
+///   Java parallel: ObjectOptimisticLockingFailureException from Spring Data JPA.
 /// </summary>
 [ApiController]
 [Route("accounts")]
-public class AccountsController(IAccountRepository repo) : ControllerBase
+public class AccountsController(IUnitOfWork uow) : ControllerBase
 {
-    // -------------------------------------------------------------------------
-    // GET /accounts?type={accountType}
-    // Java: @GetMapping / repository.findAll() or repository.findByAccountType(type)
-    // -------------------------------------------------------------------------
+    // ── GET /accounts?type={accountType} ──────────────────────────────────────
     [HttpGet]
     public async Task<ActionResult<IEnumerable<AccountResponse>>> GetAll(
         [FromQuery] string? type = null)
     {
-        var accounts = await repo.GetAllAsync(type);
+        var accounts = await uow.Accounts.GetAllAsync(type);
         return Ok(accounts.Select(ToResponse));
     }
 
-    // -------------------------------------------------------------------------
-    // GET /accounts/{id}
-    // Java: @GetMapping("/{id}") / repository.findById(id)
-    // -------------------------------------------------------------------------
+    // ── GET /accounts/deleted ─────────────────────────────────────────────────
+    [HttpGet("deleted")]
+    public async Task<ActionResult<IEnumerable<AccountResponse>>> GetDeleted()
+    {
+        var accounts = await uow.Accounts.GetDeletedAsync();
+        return Ok(accounts.Select(ToResponse));
+    }
+
+    // ── GET /accounts/{id} ───────────────────────────────────────────────────
     [HttpGet("{id:int}")]
     public async Task<ActionResult<AccountResponse>> GetById(int id)
     {
-        var account = await repo.GetByIdAsync(id);
+        var account = await uow.Accounts.GetByIdAsync(id);
         if (account is null)
             return NotFound(new { Error = $"Account {id} not found." });
-
         return Ok(ToResponse(account));
     }
 
-    // -------------------------------------------------------------------------
-    // POST /accounts
-    // Java: @PostMapping / repository.save(newEntity)
-    // -------------------------------------------------------------------------
+    // ── POST /accounts ───────────────────────────────────────────────────────
     [HttpPost]
     public async Task<ActionResult<AccountResponse>> Create(CreateAccountRequest request)
     {
-        if (await repo.ExistsAsync(request.AccountNumber))
+        if (await uow.Accounts.ExistsAsync(request.AccountNumber))
             return Conflict(new { Error = $"Account number '{request.AccountNumber}' already exists." });
 
         var account = new BankAccount
@@ -66,23 +65,20 @@ public class AccountsController(IAccountRepository repo) : ControllerBase
             AccountType   = request.AccountType,
             Balance       = request.InitialBalance,
             IsActive      = true,
-            CreatedAt     = DateTime.UtcNow,
             Address       = ToAddress(request.Address)
         };
 
-        await repo.AddAsync(account);
+        await uow.Accounts.AddAsync(account);
+        await uow.CommitAsync(); // one transaction — audit stamps set in SaveChangesAsync override
 
         return CreatedAtAction(nameof(GetById), new { id = account.Id }, ToResponse(account));
     }
 
-    // -------------------------------------------------------------------------
-    // PUT /accounts/{id}
-    // Java: @PutMapping("/{id}") / repository.save(existingEntity)
-    // -------------------------------------------------------------------------
+    // ── PUT /accounts/{id} ───────────────────────────────────────────────────
     [HttpPut("{id:int}")]
     public async Task<ActionResult<AccountResponse>> Update(int id, UpdateAccountRequest request)
     {
-        var account = await repo.GetByIdAsync(id);
+        var account = await uow.Accounts.GetByIdAsync(id);
         if (account is null)
             return NotFound(new { Error = $"Account {id} not found." });
 
@@ -92,31 +88,57 @@ public class AccountsController(IAccountRepository repo) : ControllerBase
         account.IsActive    = request.IsActive;
         account.Address     = ToAddress(request.Address);
 
-        await repo.UpdateAsync(account);
+        await uow.Accounts.UpdateAsync(account);
+
+        try
+        {
+            await uow.CommitAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Another request committed a change between our read and our write.
+            // Return 409 so the client can reload the latest version and retry.
+            // Java parallel: catch ObjectOptimisticLockingFailureException
+            return Conflict(new { Error = "The account was modified by another request. Please reload and retry." });
+        }
 
         return Ok(ToResponse(account));
     }
 
-    // -------------------------------------------------------------------------
-    // DELETE /accounts/{id}
-    // Hard delete — soft delete with global query filters in 03-C.
-    // Java: @DeleteMapping("/{id}") / repository.deleteById(id)
-    // -------------------------------------------------------------------------
+    // ── DELETE /accounts/{id} (soft delete) ──────────────────────────────────
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var account = await repo.GetByIdAsync(id);
+        var account = await uow.Accounts.GetByIdAsync(id);
         if (account is null)
             return NotFound(new { Error = $"Account {id} not found." });
 
-        await repo.DeleteAsync(account);
+        await uow.Accounts.SoftDeleteAsync(account);
+        await uow.CommitAsync();
 
         return NoContent();
     }
 
+    // ── POST /accounts/{id}/restore ──────────────────────────────────────────
+    [HttpPost("{id:int}/restore")]
+    public async Task<IActionResult> Restore(int id)
+    {
+        // Must bypass global filter to find soft-deleted rows.
+        var deleted = await uow.Accounts.GetDeletedAsync();
+        var account = deleted.FirstOrDefault(a => a.Id == id);
+        if (account is null)
+            return NotFound(new { Error = $"No soft-deleted account with id {id} found." });
+
+        await uow.Accounts.RestoreAsync(account);
+        await uow.CommitAsync();
+
+        return Ok(ToResponse(account));
+    }
+
     // ── Mapping helpers ───────────────────────────────────────────────────────
     private static AccountResponse ToResponse(BankAccount a) => new(
-        a.Id, a.AccountNumber, a.OwnerName, a.AccountType, a.Balance, a.IsActive, a.CreatedAt,
+        a.Id, a.AccountNumber, a.OwnerName, a.AccountType, a.Balance, a.IsActive,
+        a.CreatedAt, a.UpdatedAt, a.UpdatedBy,
         a.Address is null ? null : new AddressDto(
             a.Address.Street, a.Address.City, a.Address.PostalCode, a.Address.Country));
 

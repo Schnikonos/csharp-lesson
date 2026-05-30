@@ -28,6 +28,7 @@ using Lesson.Configuration;
 using Lesson.Data;
 using Lesson.Options;
 using Lesson.Repositories;
+using Lesson.UnitOfWork;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -78,8 +79,11 @@ builder.Services.AddDbContext<BankingDbContext>(options =>
         ?? "Data Source=bank.db"));
 
 // ----- 03-B: Repository registration -----
-// IAccountRepository is Scoped (same lifetime as DbContext it wraps).
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
+
+// ----- 03-C: Unit of Work registration -----
+// UnitOfWork is Scoped so it shares the same DbContext instance as AccountRepository.
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();

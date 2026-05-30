@@ -4,47 +4,63 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace Lesson.Entities;
 
 /// <summary>
+/// Lesson 03-C — adds RowVersion (optimistic concurrency), IsDeleted (soft delete),
+///               UpdatedAt / UpdatedBy (audit fields set by SaveChangesAsync override).
 /// Lesson 03-B — adds owned Address value object.
 /// Lesson 03-A — EF Core entity (code-first).
 ///
 /// Java parallel:
-///   @Entity + @Table           → class + [Table] attribute (optional if name matches)
-///   @Id + @GeneratedValue      → [Key] + [DatabaseGenerated(Identity)]
-///   @Column(nullable = false)  → [Required] / [MaxLength]
-///   @Enumerated(STRING)        → store enum as string via HasConversion in DbContext
+///   @Entity + @Table              → class + [Table] attribute
+///   @Id + @GeneratedValue         → [Key] + [DatabaseGenerated(Identity)]
+///   @Version byte[]               → [Timestamp] / [ConcurrencyCheck]
+///   @SQLDelete / @Where           → global query filter (HasQueryFilter)
+///   @PrePersist / @PreUpdate      → SaveChangesAsync override in DbContext
 /// </summary>
 [Table("BankAccounts")]
 public class BankAccount
 {
-    // EF Core convention: property named "Id" or "{TypeName}Id" is auto-detected as PK.
-    // Java: @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public int Id { get; set; }
 
-    [Required]
-    [MaxLength(50)]
+    [Required][MaxLength(50)]
     public string AccountNumber { get; set; } = string.Empty;
 
-    [Required]
-    [MaxLength(100)]
+    [Required][MaxLength(100)]
     public string OwnerName { get; set; } = string.Empty;
 
-    // Store as string in SQLite for readability.
-    // Java: @Enumerated(EnumType.STRING)
-    [Required]
-    [MaxLength(20)]
-    public string AccountType { get; set; } = "Checking"; // "Checking" | "Savings"
+    [Required][MaxLength(20)]
+    public string AccountType { get; set; } = "Checking";
 
     [Column(TypeName = "decimal(18,2)")]
     public decimal Balance { get; set; }
 
     public bool IsActive { get; set; } = true;
 
-    // Audit fields — kept simple for 03-A/B; full audit trail in 03-C.
+    // ── Audit fields ─────────────────────────────────────────────────────────
+    // CreatedAt is set once on insert by SaveChangesAsync override.
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    // Owned value object — stored as columns in the same BankAccounts table.
-    // Java: @Embedded Address address;
+    // UpdatedAt / UpdatedBy are set on every update by SaveChangesAsync override.
+    // Java parallel: @PreUpdate / @LastModifiedDate / @LastModifiedBy
+    public DateTime? UpdatedAt { get; set; }
+
+    [MaxLength(100)]
+    public string? UpdatedBy { get; set; }
+
+    // ── Soft delete ───────────────────────────────────────────────────────────
+    // Rows with IsDeleted = true are hidden by a global query filter in DbContext.
+    // Java parallel: @SQLDelete(sql = "UPDATE bank_accounts SET is_deleted = true WHERE id = ?")
+    //                @Where(clause = "is_deleted = false")
+    public bool IsDeleted { get; set; } = false;
+
+    // ── Optimistic concurrency ────────────────────────────────────────────────
+    // EF Core automatically adds this to every UPDATE/DELETE WHERE clause.
+    // If another thread changed the row, the WHERE finds no row → DbUpdateConcurrencyException.
+    // Java parallel: @Version private byte[] rowVersion;
+    [Timestamp]
+    public byte[]? RowVersion { get; set; }
+
+    // ── Owned value object ────────────────────────────────────────────────────
     public Address? Address { get; set; }
 }

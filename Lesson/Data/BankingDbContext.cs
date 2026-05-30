@@ -1,44 +1,38 @@
 using Lesson.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace Lesson.Data;
 
 /// <summary>
-/// Lesson 03-B — adds OwnsOne&lt;Address&gt; configuration.
+/// Lesson 03-C — global query filter (soft delete) + SaveChangesAsync audit override.
+/// Lesson 03-B — OwnsOne&lt;Address&gt; configuration.
 /// Lesson 03-A — EF Core DbContext.
-///
-/// DbContext is the Unit-of-Work + Repository in one:
-///   - tracks changes to entities in memory
-///   - translates LINQ queries to SQL
-///   - persists changes with SaveChangesAsync()
-///
-/// Java parallel:
-///   EntityManager (JPA) / EntityManagerFactory → DbContext / DbContextFactory
-///   @PersistenceContext EntityManager em        → inject DbContext via constructor DI
-///
-/// Lifetime: registered as Scoped (one per HTTP request) — EF Core default.
-/// Never inject into singletons; use IDbContextFactory instead.
 /// </summary>
 public class BankingDbContext(DbContextOptions<BankingDbContext> options) : DbContext(options)
 {
-    /// <summary>
-    /// DbSet is the entry point for querying and saving BankAccount entities.
-    /// Java parallel: JpaRepository&lt;BankAccount, Integer&gt; / EntityManager.find()
-    /// </summary>
     public DbSet<BankAccount> BankAccounts => Set<BankAccount>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
-        // Unique constraint on AccountNumber
-        // Java: @Column(unique = true)
         modelBuilder.Entity<BankAccount>()
             .HasIndex(a => a.AccountNumber)
             .IsUnique();
 
-        // Seed data — present in every migration; useful for demos and tests.
-        // Java: data.sql / @Sql on tests
+        // ── Soft delete: global query filter ─────────────────────────────────
+        // Every LINQ query on BankAccounts automatically adds WHERE IsDeleted = 0.
+        // Use IgnoreQueryFilters() to bypass it when you need to see deleted rows.
+        // Java parallel: @Where(clause = "is_deleted = false") on the entity class.
+        modelBuilder.Entity<BankAccount>()
+            .HasQueryFilter(a => !a.IsDeleted);
+
+        // Owned entity
+        modelBuilder.Entity<BankAccount>()
+            .OwnsOne(a => a.Address);
+
+        // Seed data
         modelBuilder.Entity<BankAccount>().HasData(
             new BankAccount
             {
@@ -61,11 +55,31 @@ public class BankingDbContext(DbContextOptions<BankingDbContext> options) : DbCo
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
             }
         );
+    }
 
-        // Owned entity — Address columns live in the BankAccounts table.
-        // Java parallel: @Embeddable / @Embedded
-        // Column names default to "Address_Street", "Address_City", etc.
-        modelBuilder.Entity<BankAccount>()
-            .OwnsOne(a => a.Address);
+    // ── Audit override ────────────────────────────────────────────────────────
+    // Intercepts every save and automatically stamps CreatedAt / UpdatedAt / UpdatedBy.
+    // Java parallel: @PrePersist / @PreUpdate lifecycle callbacks,
+    //                or Spring Data's @CreatedDate / @LastModifiedDate / @LastModifiedBy.
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+
+        foreach (EntityEntry<BankAccount> entry in ChangeTracker.Entries<BankAccount>())
+        {
+            if (entry.State == EntityState.Added)
+            {
+                entry.Entity.CreatedAt = now;
+            }
+
+            if (entry.State is EntityState.Added or EntityState.Modified)
+            {
+                entry.Entity.UpdatedAt  = now;
+                // In a real app, pull the current user from IHttpContextAccessor.
+                entry.Entity.UpdatedBy ??= "system";
+            }
+        }
+
+        return base.SaveChangesAsync(cancellationToken);
     }
 }

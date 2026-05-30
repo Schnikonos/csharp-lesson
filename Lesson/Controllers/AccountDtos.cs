@@ -38,5 +38,7 @@ public record AccountResponse(
     decimal      Balance,
     bool         IsActive,
     DateTime     CreatedAt,
+    DateTime?    UpdatedAt,
+    string?      UpdatedBy,
     AddressDto?  Address
 );
