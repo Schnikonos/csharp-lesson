@@ -121,6 +121,10 @@ using (var scope = app.Services.CreateScope())
 if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 
+// ----- 06-C: Minimal-API endpoint protected by IEndpointFilter -----
+app.MapGet("/minimal/secure", () => Results.Ok(new { secret = "you have the key!" }))
+   .AddEndpointFilter(new ApiKeyEndpointFilter("lesson06"));
+
 // ----- 06-A: Middleware pipeline — ORDER MATTERS -----
 // ResponseHeaderMiddleware wraps everything below it.
 app.UseMiddleware<ResponseHeaderMiddleware>();
