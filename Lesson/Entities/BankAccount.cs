@@ -4,6 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace Lesson.Entities;
 
 /// <summary>
+/// Lesson 04-A — adds CustomerId FK and Customer navigation property (many-to-one side).
 /// Lesson 03-C — adds RowVersion (optimistic concurrency), IsDeleted (soft delete),
 ///               UpdatedAt / UpdatedBy (audit fields set by SaveChangesAsync override).
 /// Lesson 03-B — adds owned Address value object.
@@ -12,6 +13,7 @@ namespace Lesson.Entities;
 /// Java parallel:
 ///   @Entity + @Table              → class + [Table] attribute
 ///   @Id + @GeneratedValue         → [Key] + [DatabaseGenerated(Identity)]
+///   @ManyToOne @JoinColumn        → CustomerId (FK) + Customer? (navigation)
 ///   @Version byte[]               → [Timestamp] / [ConcurrencyCheck]
 ///   @SQLDelete / @Where           → global query filter (HasQueryFilter)
 ///   @PrePersist / @PreUpdate      → SaveChangesAsync override in DbContext
@@ -63,4 +65,11 @@ public class BankAccount
 
     // ── Owned value object ────────────────────────────────────────────────────
     public Address? Address { get; set; }
+
+    // ── Many-to-one navigation ────────────────────────────────────────────────
+    // CustomerId is the shadow FK column in the database.
+    // Customer is the in-memory navigation — populated only when you call Include().
+    // Java parallel: @ManyToOne @JoinColumn(name = "customer_id") private Customer customer;
+    public int? CustomerId { get; set; }
+    public Customer? Customer { get; set; }
 }

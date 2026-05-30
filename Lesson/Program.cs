@@ -85,6 +85,9 @@ builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 // UnitOfWork is Scoped so it shares the same DbContext instance as AccountRepository.
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
+// ----- 04-A: Customer repository -----
+builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
+
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
