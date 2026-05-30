@@ -30,10 +30,12 @@ using Lesson.ExceptionHandlers;
 using Lesson.Filters;
 using Lesson.Middleware;
 using Lesson.Options;
+using Lesson.Pipeline;
 using Lesson.Repositories;
 using Lesson.UnitOfWork;
 using Lesson.Validators;
 using FluentValidation;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -102,10 +104,20 @@ builder.Services.AddSingleton<Lesson.Services.LinqAdvancedService>();
 builder.Services.AddTransient<RequestLoggingMiddleware>();
 builder.Services.AddTransient<ResponseHeaderMiddleware>();
 
-// ----- 07-B: Global exception handler + FluentValidation -----
+// ----- 07-B + 07-C: Exception handlers (specific FIRST, catch-all LAST) -----
+// IExceptionHandler pipeline checks handlers in registration order.
+builder.Services.AddExceptionHandler<DomainExceptionHandler>();
+builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 builder.Services.AddValidatorsFromAssemblyContaining<CreateTransferRequestValidator>();
+
+// ----- 07-C: MediatR + validation pipeline behaviour -----
+builder.Services.AddMediatR(cfg =>
+    cfg.RegisterServicesFromAssemblyContaining<Program>());
+builder.Services.AddTransient(
+    typeof(IPipelineBehavior<,>),
+    typeof(ValidationBehavior<,>));
 
 builder.Services.AddControllers(options =>
 {

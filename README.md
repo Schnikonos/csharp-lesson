@@ -1,4 +1,198 @@
-# Lesson 07-B — Global Exception Handler, ProblemDetails & FluentValidation
+# Lesson 07-C — Custom Exception Hierarchy, Domain Handlers & MediatR Validation Pipeline
+
+> **Branch:** `lesson/07-error-handling/c-advanced`
+> **Prerequisites:** Lesson 07-B (IExceptionHandler, ProblemDetails, FluentValidation)
+
+---
+
+## What you will learn
+
+| Topic | C# ASP.NET Core | Java parallel |
+|---|---|---|
+| Custom exception hierarchy | `DomainException` base ? typed subclasses | `RuntimeException` hierarchy + `@ResponseStatus` |
+| `NotFoundException` ? 404 | thrown from handler, caught globally | `ResponseStatusException(NOT_FOUND)` |
+| `BusinessRuleException` ? 422 | domain rule violation | `ResponseStatusException(UNPROCESSABLE_ENTITY)` |
+| Multiple `IExceptionHandler` | **registration order = evaluation order** | `@ExceptionHandler` specificity in `@ControllerAdvice` |
+| `IPipelineBehavior<TReq, TRes>` | MediatR middleware (validation, logging, etc.) | Spring AOP `@Around` advice |
+| `ValidationBehavior<T>` | runs FluentValidation before every handler | `@Validated` service + `MethodValidationInterceptor` |
+
+---
+
+## 1. Custom Exception Hierarchy
+
+```csharp
+public abstract class DomainException(string message, int statusCode = 400) : Exception(message)
+{
+    public int StatusCode { get; } = statusCode;
+}
+
+public class NotFoundException(string resource, object key)
+    : DomainException($"{resource} '{key}' was not found.", 404);
+
+public class BusinessRuleException(string message)
+    : DomainException(message, 422);
+
+public class ForbiddenException(string message)
+    : DomainException(message, 403);
+```
+
+Exceptions carry their own HTTP status — the handler needs no `if/else` chain.
+
+**Java parallel:**
+```java
+@ResponseStatus(HttpStatus.NOT_FOUND)
+public class NotFoundException extends RuntimeException { ... }
+```
+
+---
+
+## 2. DomainExceptionHandler + Handler Registration Order
+
+```csharp
+// Specific handlers FIRST — GlobalExceptionHandler is the catch-all at the end
+builder.Services.AddExceptionHandler<DomainExceptionHandler>();
+builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+```
+
+`DomainExceptionHandler` returns `false` if the exception is not a `DomainException`,
+passing control to the next registered handler.
+
+**Java parallel:** `@ExceptionHandler` methods are matched by most-specific type first;
+`@ExceptionHandler(Exception.class)` is the catch-all.
+
+---
+
+## 3. MediatR IPipelineBehavior — Validation Middleware
+
+```csharp
+public class ValidationBehavior<TRequest, TResponse>(
+    IEnumerable<IValidator<TRequest>> validators)
+    : IPipelineBehavior<TRequest, TResponse>
+    where TRequest : notnull
+{
+    public async Task<TResponse> Handle(
+        TRequest request,
+        RequestHandlerDelegate<TResponse> next,
+        CancellationToken ct)
+    {
+        var failures = (await Task.WhenAll(
+                validators.Select(v => v.ValidateAsync(request, ct))))
+            .SelectMany(r => r.Errors)
+            .Where(f => f is not null)
+            .ToList();
+
+        if (failures.Count > 0)
+            throw new ValidationException(failures); // caught by ValidationExceptionHandler
+
+        return await next();
+    }
+}
+```
+
+**Registered once** — applies to ALL MediatR requests:
+```csharp
+builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+```
+
+**Java parallel:** Spring AOP `@Around` `@Validated` service interceptor.
+
+---
+
+## 4. Command + Handler pattern
+
+```csharp
+public record CreatePaymentCommand(string FromAccount, string ToAccount, decimal Amount)
+    : IRequest<PaymentResult>;
+
+public class CreatePaymentHandler : IRequestHandler<CreatePaymentCommand, PaymentResult>
+{
+    public Task<PaymentResult> Handle(CreatePaymentCommand request, CancellationToken ct)
+    {
+        if (_blocked.Contains(request.FromAccount))
+            throw new BusinessRuleException($"Account {request.FromAccount} is blocked.");
+
+        return Task.FromResult(new PaymentResult(Guid.NewGuid(), ...));
+    }
+}
+```
+
+**Java parallel:** Spring `@Service` method called by the controller — MediatR decouples the
+controller from the handler via message-passing.
+
+---
+
+## Exception Handler Pipeline (all three parts combined)
+
+```
+Unhandled exception
+  ? DomainExceptionHandler    (returns true for DomainException subtypes)
+  ? ValidationExceptionHandler (returns true for FluentValidation.ValidationException)
+  ? GlobalExceptionHandler    (catch-all ? 500 ProblemDetails)
+```
+
+---
+
+## Endpoints
+
+| Method | Route | Notes |
+|--------|-------|-------|
+| `POST` | `/payments` | MediatR pipeline ? validation ? handler |
+| `GET` | `/payments/{id}` | Always throws NotFoundException ? 404 |
+| `GET` | `/payments/forbidden` | Throws ForbiddenException ? 403 |
+
+---
+
+## Project Structure (new / changed files)
+
+```
+Lesson/
+  Exceptions/
+    DomainException.cs             NEW  DomainException + NotFoundException + BusinessRuleException + ForbiddenException
+  ExceptionHandlers/
+    DomainExceptionHandler.cs      NEW  Maps DomainException ? ProblemDetails by StatusCode
+    ValidationExceptionHandler.cs  NEW  Maps FluentValidation.ValidationException ? 400
+  Pipeline/
+    ValidationBehavior.cs          NEW  IPipelineBehavior — runs validators before handler
+  Commands/
+    CreatePaymentCommand.cs        NEW  IRequest + validator + IRequestHandler
+  Controllers/
+    PaymentsController.cs          NEW  /payments/* endpoints
+  Program.cs                              + ordered exception handler registration + MediatR
+Lesson.Tests/
+  ErrorHandlingAdvancedTests.cs    NEW  9 integration tests
+```
+
+---
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~ErrorHandlingAdvancedTests"
+# 9 tests — all pass
+```
+
+| Test | What it verifies |
+|---|---|
+| `Get_PaymentNotFound_Returns404` | NotFoundException ? 404 |
+| `Get_NotFound_ResponseIsProblemDetails` | ProblemDetails status field |
+| `Forbidden_Returns403` | ForbiddenException ? 403 |
+| `Forbidden_ResponseIsProblemDetails` | ProblemDetails for 403 |
+| `Create_WhenAmountZero_Returns400ViaMediatRPipeline` | ValidationBehavior catches invalid command |
+| `Create_WhenSameAccount_Returns400WithValidationError` | Cross-property rule in MediatR pipeline |
+| `Create_WhenAccountBlocked_Returns422BusinessRule` | BusinessRuleException from handler ? 422 |
+| `Create_WithValidCommand_Returns201` | Happy path |
+| `Create_WithValidCommand_ResponseContainsPaymentId` | Response body has Guid |
+
+---
+
+## Exercises
+
+1. Add a `ConflictException` (409) and throw it when the same `FromAccount + ToAccount + Amount` combination is submitted twice.
+2. Add a `LoggingBehavior<TRequest, TResponse>` that logs the command type, execution time, and whether it succeeded or threw.
+3. Create a second `IRequestHandler` with its own `AbstractValidator` and verify the `ValidationBehavior` runs the correct validator per command type.
+4. Move `ValidationExceptionHandler` after `GlobalExceptionHandler` and observe which tests fail — then restore the correct order.
+
 
 > **Branch:** `lesson/07-error-handling/b-intermediate`
 > **Prerequisites:** Lesson 07-A (try/catch, Data Annotations, ModelState)
