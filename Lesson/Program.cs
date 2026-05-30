@@ -34,6 +34,7 @@ using Lesson.Middleware;
 using Lesson.Options;
 using Lesson.Pipeline;
 using Lesson.Repositories;
+using Lesson.ScheduledTasks;
 using Lesson.UnitOfWork;
 using Lesson.Validators;
 using FluentValidation;
@@ -129,6 +130,15 @@ builder.Services.AddSingleton<Lesson.Subscribers.PaymentAuditSubscriber>();
 builder.Services.AddSingleton<OutboxChannel>();
 builder.Services.AddSingleton<OutboxConsumerService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<OutboxConsumerService>());
+
+// ----- 09-A: PeriodicTimer-based scheduled job -----
+builder.Services.AddSingleton<JobHistoryStore>();
+builder.Services.AddSingleton<InterestCalculationService>(sp =>
+    new InterestCalculationService(
+        sp.GetRequiredService<JobHistoryStore>(),
+        sp.GetRequiredService<ILogger<InterestCalculationService>>(),
+        period: TimeSpan.FromSeconds(30)));   // 30-second interval in production host
+builder.Services.AddHostedService(sp => sp.GetRequiredService<InterestCalculationService>());
 
 builder.Services.AddControllers(options =>
 {
