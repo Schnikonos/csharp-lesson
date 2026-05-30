@@ -1,4 +1,129 @@
-# Lesson 09-B — Quartz.NET (IJob, ITrigger, cron scheduling)
+# Lesson 10-A — File Handling Basics (File, StreamReader/StreamWriter, FileStream)
+
+> **Branch:** `lesson/10-file-handling/a-basic`
+> **Prerequisites:** Lesson 09 (scheduled tasks)
+
+---
+
+## What you will learn
+
+| Topic | C# .NET | Java parallel |
+|---|---|---|
+| Static helpers | `File.Exists`, `File.Delete`, `File.AppendText`, `new FileInfo(path)` | `java.nio.file.Files`, `new File(path)` |
+| `StreamWriter` | `new StreamWriter(path)`, `await using` | `PrintWriter`/`BufferedWriter` via `Files.newBufferedWriter` |
+| `StreamReader` | `new StreamReader(path)`, `ReadLineAsync` | `BufferedReader` via `Files.newBufferedReader` |
+| `FileStream` | low-level byte stream; explicit mode, access, share, buffer flags | `FileOutputStream` + `BufferedOutputStream` |
+| `using` declaration | C# 8+ — disposes at end of enclosing scope; no extra braces needed | `try`-with-resources |
+| `await using` | `IAsyncDisposable` — flushes buffers asynchronously before dispose | No direct equivalent |
+
+---
+
+## 1. StreamWriter — writing text
+
+```csharp
+// 'await using' flushes asynchronously; works because StreamWriter : IAsyncDisposable
+await using var writer = new StreamWriter(path, append: false);
+await writer.WriteLineAsync(line.AsMemory(), cancellationToken);
+```
+
+**`append: false`** — truncates and creates; `append: true` — opens or creates and seeks to end.
+
+**Java parallel:**
+```java
+try (var writer = Files.newBufferedWriter(Path.of(path))) {
+    writer.write(line);
+    writer.newLine();
+}
+```
+
+---
+
+## 2. StreamReader — reading text
+
+```csharp
+// StreamReader does not implement IAsyncDisposable ? plain 'using'
+using var reader = new StreamReader(path);
+while (await reader.ReadLineAsync(ct) is { } line)
+    lines.Add(line);
+```
+
+`ReadLineAsync` returns `null` at EOF — the `is { }` pattern filters nulls out cleanly.
+
+---
+
+## 3. FileStream — binary data
+
+```csharp
+await using var fs = new FileStream(
+    path,
+    FileMode.Create,       // create or overwrite
+    FileAccess.Write,
+    FileShare.None,        // no concurrent readers/writers
+    bufferSize: 4096,
+    useAsync: true);       // enables OS async I/O on Windows
+
+await fs.WriteAsync(bytes, cancellationToken);
+```
+
+`useAsync: true` is important for `await fs.WriteAsync` to be truly asynchronous on Windows.
+
+---
+
+## 4. File / FileInfo static helpers
+
+```csharp
+File.Exists(path)              // bool
+File.Delete(path)              // void — throws if missing
+File.AppendText(path)          // StreamWriter opened for append
+new FileInfo(path).Length      // file size in bytes
+new FileInfo(path).LastWriteTimeUtc
+```
+
+---
+
+## Endpoints
+
+| Method | Route | Notes |
+|--------|-------|-------|
+| `POST` | `/files/export` | Write transaction list to a temp text file |
+| `GET` | `/files/read?path=…` | Read all lines from a file |
+| `POST` | `/files/append` | Append a single line to an existing file |
+| `GET` | `/files/info?path=…` | File metadata (size, dates) |
+| `DELETE` | `/files/delete?path=…` | Remove a file |
+| `POST` | `/files/binary` | Write Base64-encoded bytes via `FileStream` |
+
+---
+
+## Project Structure (new / changed files)
+
+```
+Lesson/
+  FileHandling/
+    FileHandlingDtos.cs          NEW  Request record types
+  Controllers/
+    FileHandlingController.cs    NEW  /files/* endpoints
+Lesson.Tests/
+  FileHandlingBasicTests.cs      NEW  8 integration tests + FileHandlingTestFactory
+```
+
+---
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~FileHandlingBasicTests"
+# 8 tests — all pass
+```
+
+---
+
+## Exercises
+
+1. Add a `GET /files/list?directory=…` endpoint that returns all `.txt` files in a directory using `Directory.EnumerateFiles`.
+2. Change `WriteBinary` to use `await File.WriteAllBytesAsync(path, bytes, ct)` — compare the two approaches.
+3. Read a large file using `ReadAllLinesAsync` vs the `StreamReader` loop — benchmark with `Stopwatch` to understand the tradeoff.
+4. Add compression: wrap `FileStream` in a `GZipStream` (`System.IO.Compression`) and write compressed text.
+
 
 > **Branch:** `lesson/09-scheduled-tasks/b-intermediate`
 > **Prerequisites:** Lesson 09-A (PeriodicTimer, BackgroundService)
