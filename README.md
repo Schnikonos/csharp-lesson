@@ -1,4 +1,169 @@
-# Lesson 05-C — LINQ Advanced
+# Lesson 06-A — Middleware Basics
+
+> **Branch:** `lesson/06-middleware/a-basic`
+> **Prerequisites:** Lesson 05-C (Advanced LINQ)
+
+---
+
+## What you will learn
+
+| Topic | C# ASP.NET Core | Java parallel |
+|---|---|---|
+| `IMiddleware` | preferred DI-managed middleware contract | `OncePerRequestFilter` |
+| `RequestDelegate next` | call the next component in the pipeline | `filterChain.doFilter()` |
+| Middleware ordering | registration order in `Program.cs` controls execution | `FilterRegistrationBean.setOrder()` |
+| Request/response logging | log before/after `next(context)` | `CommonsRequestLoggingFilter` |
+| Response header injection | add header before `next()` | `OncePerRequestFilter` — `response.setHeader()` |
+
+---
+
+## 1. The Middleware Pipeline
+
+ASP.NET Core processes every HTTP request through a **pipeline** of middleware components.
+Each component can:
+- Run code **before** the next component (inbound)
+- Call `await next(context)` to pass control forward
+- Run code **after** the next component returns (outbound)
+
+```
+Request ?  [ResponseHeaderMiddleware] ? [RequestLoggingMiddleware] ? [Router] ? Controller
+Response ?                           ?                            ?          ?
+```
+
+Registration order in `Program.cs` determines pipeline order.  
+Middleware registered **first** wraps everything registered after it.
+
+---
+
+## 2. IMiddleware vs Convention-Based Middleware
+
+| Approach | Lifetime | DI injection |
+|---|---|---|
+| `IMiddleware` | managed by DI container | full constructor injection ? |
+| Convention-based (`Invoke(HttpContext)`) | instantiated once at startup | only singleton-safe services in constructor |
+
+`IMiddleware` is the modern, recommended approach because it integrates cleanly with the DI container.
+
+---
+
+## 3. RequestLoggingMiddleware
+
+```csharp
+public class RequestLoggingMiddleware(ILogger<RequestLoggingMiddleware> logger) : IMiddleware
+{
+    public async Task InvokeAsync(HttpContext context, RequestDelegate next)
+    {
+        var sw = Stopwatch.StartNew();
+        logger.LogInformation("? {Method} {Path}", context.Request.Method, context.Request.Path);
+
+        await next(context);   // pass to next middleware / endpoint
+
+        sw.Stop();
+        logger.LogInformation("? {Method} {Path} {StatusCode} ({Elapsed}ms)",
+            context.Request.Method, context.Request.Path,
+            context.Response.StatusCode, sw.ElapsedMilliseconds);
+    }
+}
+```
+
+**Java parallel:** `OncePerRequestFilter.doFilterInternal()` — call `filterChain.doFilter()`,
+then log after it returns.
+
+---
+
+## 4. ResponseHeaderMiddleware
+
+```csharp
+public class ResponseHeaderMiddleware : IMiddleware
+{
+    public async Task InvokeAsync(HttpContext context, RequestDelegate next)
+    {
+        context.Response.Headers["X-Powered-By"] = "ASP.NET Core 10 Lesson 06";
+        await next(context);
+        // response body has already started streaming — do not write body here
+    }
+}
+```
+
+Headers **must** be set before `next()` is called (or before the response body starts writing).
+
+---
+
+## 5. Registration in Program.cs
+
+```csharp
+// Register as transient so DI manages the lifetime
+builder.Services.AddTransient<RequestLoggingMiddleware>();
+builder.Services.AddTransient<ResponseHeaderMiddleware>();
+
+// Add to pipeline — ORDER MATTERS
+app.UseMiddleware<ResponseHeaderMiddleware>();   // outermost wrapper
+app.UseMiddleware<RequestLoggingMiddleware>();   // logs every request that reaches it
+```
+
+**Java parallel:**
+```java
+@Bean
+public FilterRegistrationBean<RequestLoggingFilter> loggingFilter() {
+    var reg = new FilterRegistrationBean<>(new RequestLoggingFilter());
+    reg.setOrder(1);
+    return reg;
+}
+```
+
+---
+
+## Endpoints
+
+| Method | Route | Notes |
+|--------|-------|-------|
+| `GET` | `/middleware/ping` | Returns `{ message: "pong" }` — used to verify header injection |
+| `GET` | `/middleware/slow` | 10 ms delay — verifies elapsed-time logging |
+
+---
+
+## Project Structure (new / changed files)
+
+```
+Lesson/
+  Middleware/
+    RequestLoggingMiddleware.cs  NEW  IMiddleware — logs method, path, status, elapsed
+    ResponseHeaderMiddleware.cs  NEW  IMiddleware — injects X-Powered-By header
+  Controllers/
+    MiddlewareDemoController.cs  NEW  /middleware/ping + /middleware/slow
+  Program.cs                          + middleware DI registrations + UseMiddleware calls
+Lesson.Tests/
+  MiddlewareBasicTests.cs        NEW  7 integration tests
+```
+
+---
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~MiddlewareBasicTests"
+# 7 tests — all pass
+```
+
+| Test | What it verifies |
+|---|---|
+| `Ping_ResponseContainsXPoweredByHeader` | Header is present |
+| `Ping_XPoweredByHeader_ContainsExpectedValue` | Header value contains "ASP.NET Core" |
+| `AnyEndpoint_ResponseContainsXPoweredByHeader` | Header applies to all routes |
+| `Ping_Returns200_MiddlewareDoesNotBreakPipeline` | Middleware is transparent |
+| `Ping_ResponseBody_IsCorrect` | Body is unchanged by middleware |
+| `Slow_Returns200_AfterDelay` | Middleware works with delayed responses |
+| `UnknownRoute_Returns404_MiddlewareStillAddsHeader` | Header added even on 404 responses |
+
+---
+
+## Exercises
+
+1. Add a `CorrelationIdMiddleware` that reads `X-Correlation-Id` from the request (or generates a new `Guid` if absent) and echoes it back in the response headers.
+2. Change `ResponseHeaderMiddleware` to add a `Cache-Control: no-store` header and verify with a test.
+3. Add a middleware that short-circuits the pipeline for requests to `/health` and returns `200 OK` directly — bypassing the router and all downstream middleware.
+4. Register `RequestLoggingMiddleware` **before** `ResponseHeaderMiddleware` and observe how the log output changes (the status code logged will still be correct because both happen after `next()`).
+
 
 > **Branch:** `lesson/05-linq/c-advanced`
 > **Prerequisites:** Lesson 05-B (IEnumerable vs IQueryable, GroupBy, Join, SelectMany, let)

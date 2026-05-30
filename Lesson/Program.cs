@@ -26,6 +26,7 @@
 
 using Lesson.Configuration;
 using Lesson.Data;
+using Lesson.Middleware;
 using Lesson.Options;
 using Lesson.Repositories;
 using Lesson.UnitOfWork;
@@ -93,6 +94,10 @@ builder.Services.AddSingleton<Lesson.Services.LinqService>();
 builder.Services.AddSingleton<Lesson.Services.LinqIntermediateService>();
 builder.Services.AddSingleton<Lesson.Services.LinqAdvancedService>();
 
+// ----- 06: Middleware (IMiddleware — lifetime managed by DI) -----
+builder.Services.AddTransient<RequestLoggingMiddleware>();
+builder.Services.AddTransient<ResponseHeaderMiddleware>();
+
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
@@ -110,6 +115,12 @@ using (var scope = app.Services.CreateScope())
 
 if (app.Environment.IsDevelopment())
     app.MapOpenApi();
+
+// ----- 06-A: Middleware pipeline — ORDER MATTERS -----
+// ResponseHeaderMiddleware wraps everything below it.
+app.UseMiddleware<ResponseHeaderMiddleware>();
+// RequestLoggingMiddleware logs all requests that pass through.
+app.UseMiddleware<RequestLoggingMiddleware>();
 
 app.UseHttpsRedirection();
 app.UseAuthorization();
