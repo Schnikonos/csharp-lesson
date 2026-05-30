@@ -6,6 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- Makes the auto-generated Program class visible to the test project -->
     <InternalsVisibleTo>Lesson.Tests</InternalsVisibleTo>
+    <!-- User Secrets ID — secrets stored outside the repo, never committed -->
+    <UserSecretsId>lesson-02c-banking-app</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
