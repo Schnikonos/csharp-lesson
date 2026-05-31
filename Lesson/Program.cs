@@ -32,6 +32,7 @@
 
 using Lesson.Configuration;
 using Lesson.Options;
+using Microsoft.FeatureManagement;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -82,6 +83,12 @@ builder.Services
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+
+// ----- 02-C: Feature Flags -----
+// AddFeatureManagement reads "FeatureManagement" section from appsettings.json.
+// Java parallel: Togglz / FF4J configuration bean
+builder.Services.AddFeatureManagement(builder.Configuration.GetSection("FeatureManagement"))
+    .AddFeatureFilter<Microsoft.FeatureManagement.FeatureFilters.PercentageFilter>();
 
 var app = builder.Build();
 
