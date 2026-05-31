@@ -1,0 +1,23 @@
+# Build output
+**/bin/
+**/obj/
+
+# Runtime artefacts
+**/*.user
+**/*.suo
+.vs/
+
+# Secrets / env overrides
+.env
+appsettings.Development.json
+
+# Test results
+**/TestResults/
+
+# SQLite dev databases
+*.db
+*.sqlite
+
+# NuGet
+**/packages/
+*.nupkg

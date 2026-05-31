@@ -1,0 +1,94 @@
+# =============================================================================
+# Lesson 23-A — docker-compose.yml
+#
+# Services:
+#   app       — the ASP.NET Core banking API
+#   postgres  — primary data store (mapped to port 5433 to avoid local conflicts)
+#   redis     — output/response caching + SignalR backplane (lesson 24)
+#   rabbitmq  — MassTransit message bus (lessons 17-A … 17-C)
+#
+# Java parallel:
+#   Spring Boot Docker Compose support (spring-boot-docker-compose)
+#   → same pattern via .NET 8+ Aspire / direct docker-compose
+#
+# Usage:
+#   docker compose up --build          # start everything
+#   docker compose up --build app      # rebuild only the API
+#   docker compose down -v             # stop & remove volumes
+# =============================================================================
+
+services:
+
+  # ── ASP.NET Core app ────────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      # Overrides appsettings.json; injected as env vars at runtime
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=banking;Username=banking;Password=${POSTGRES_PASSWORD:-secret}"
+      ConnectionStrings__Redis:   "redis:6379"
+      RabbitMq__Host:             "rabbitmq"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB:       banking
+      POSTGRES_USER:     banking
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"   # host:container — 5433 avoids clash with local Postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U banking -d banking"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis ────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ── RabbitMQ ─────────────────────────────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # management UI
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  postgres_data:

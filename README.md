@@ -1,3 +1,62 @@
+# Lesson 23 — Docker & docker-compose
+
+> **Branch:** `lesson/23-docker/a-basic`
+
+## 23-A — Multi-stage Dockerfile + docker-compose
+
+### Dockerfile (multi-stage)
+```dockerfile
+# Stage 1 — build with SDK image
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY Lesson/Lesson.csproj Lesson/
+RUN dotnet restore Lesson/Lesson.csproj
+COPY Lesson/ Lesson/
+RUN dotnet publish Lesson/Lesson.csproj -c Release -o /app/publish --os linux
+
+# Stage 2 — runtime-only image (~200 MB vs 900 MB for SDK)
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+COPY --from=build /app/publish .
+EXPOSE 8080
+HEALTHCHECK --interval=30s CMD wget -qO- http://localhost:8080/health || exit 1
+ENTRYPOINT ["dotnet", "Lesson.dll"]
+```
+
+### docker-compose.yml (4 services)
+```yaml
+services:
+  app:       # ASP.NET Core API — depends_on postgres (healthy), redis, rabbitmq
+  postgres:  # PostgreSQL 16    — healthcheck: pg_isready
+  redis:     # Redis 7           — healthcheck: redis-cli ping
+  rabbitmq:  # RabbitMQ 3       — healthcheck: rabbitmq-diagnostics
+```
+
+### Environment variable injection
+```yaml
+# In docker-compose.yml, values override appsettings.json at runtime:
+environment:
+  ConnectionStrings__Default: "Host=postgres;Port=5432;Database=banking;..."
+  ConnectionStrings__Redis:   "redis:6379"
+  RabbitMq__Host:             "rabbitmq"
+```
+
+### Run walkthrough
+```bash
+docker compose up --build          # build & start all four services
+docker compose logs -f app         # tail API logs
+docker compose down -v             # stop + remove volumes
+```
+
+**Java parallel:**  
+`spring-boot:build-image` / Jib ? `dotnet publish --os linux` + multi-stage Dockerfile.  
+Spring Boot Docker Compose support ? same `docker-compose.yml` approach in .NET.  
+`spring.datasource.url` env override ? `ConnectionStrings__Default` env override.
+
+> **Note:** Docker tests are infrastructure-level (`docker compose up`) and run outside the xUnit suite.
+
+---
+
 # Lesson 22 — Result Pattern & Functional Error Handling
 
 > **Branch family:** `lesson/22-result-pattern/{a-basic,b-intermediate}`
