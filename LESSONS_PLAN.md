@@ -381,6 +381,19 @@ For a Java/Spring Boot dev, the fastest path to productivity:
 7. **12** (testing) — validate everything you've built
 8. Then the rest in any order
 
+---
+
+### Lesson 25 — Event Sourcing
+**Branches:** `lesson/25-event-sourcing/a-basic`
+
+| Part | Content |
+|------|---------|
+| **A - Basic** | `IEvent` marker interface; `BankAccountAggregate` rebuilt from event stream (`Apply`/`Rehydrate`/`Mutate`); `IEventStore` + `InMemoryEventStore` (append-only); `EventSourcingController` — open/deposit/withdraw/state/history endpoints; `BankAccountAggregateTests` (7 unit); `EventSourcingIntegrationTests` (6 HTTP tests) |
+
+**Java parallels:** Axon `@Aggregate` + `@CommandHandler` + `@EventSourcingHandler` → `BankAccountAggregate.Apply/Mutate`; Axon `EventStore` → `IEventStore`; Axon `AggregateLifecycle.apply(event)` → `Apply(IEvent)`; Axon `@QueryHandler` reconstructing state → `Rehydrate(events)`.
+
+---
+
 > **Already covered — no new lessons needed:**
 > - Logging → **Lesson 15** (log levels, Serilog sinks/file rotation/enrichers, OpenTelemetry)
 > - Caching → **Lesson 14** (IMemoryCache, Redis, output caching)
