@@ -129,7 +129,124 @@ dotnet test --filter "FullyQualifiedName~CsvFileTests"
 
 ---
 
-# Lesson 26-B — Razor Pages
+# Lesson 26-C — Security Hardening
+
+> **Branch:** `lesson/26-frontend-security/c-advanced`
+> **Prerequisites:** Lesson 26-B (Razor Pages)
+
+This lesson hardens the application against the most common browser-based attacks:
+clickjacking, MIME sniffing, XSS, CSRF, cookie theft, and brute-force login.
+
+## What you will learn
+
+| Topic | C# .NET | Java / Spring Security parallel |
+|---|---|---|
+| Content-Security-Policy | `Content-Security-Policy` header via middleware | `http.headers().contentSecurityPolicy(...)` |
+| Clickjacking | `X-Frame-Options: DENY` | `http.headers().frameOptions().deny()` |
+| MIME sniffing | `X-Content-Type-Options: nosniff` | `http.headers().contentTypeOptions()` |
+| Referrer leakage | `Referrer-Policy: strict-origin-when-cross-origin` | `http.headers().referrerPolicy(...)` |
+| Cookie security | `HttpOnly`, `Secure`, `SameSite=Strict` on `CookieOptions` | `SessionCreationPolicy` + `CookieCsrfTokenRepository` |
+| Anti-forgery (API) | `IAntiforgery.GetAndStoreTokens()` + `X-CSRF-TOKEN` header | Spring Security `CsrfTokenRepository` |
+| Rate limiting | `AddRateLimiter` + `[EnableRateLimiting("login")]` fixed-window | Resilience4j `@RateLimiter` / bucket4j |
+| XSS prevention | Razor `@Model.Value` auto-encodes; only `@Html.Raw` opts out | Thymeleaf auto-escapes by default |
+
+## Middleware order (additions to 26-A/B)
+
+```
+SecurityHeadersMiddleware   ? CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy
+UseCookiePolicy             ? DefaultHttpOnly, SameSite defaults
+ResponseHeaderMiddleware
+RequestLoggingMiddleware
+UseExceptionHandler
+UseHttpsRedirection
+UseHsts
+UseCors
+UseDefaultFiles
+UseStaticFiles
+UseAuthorization
+UseRateLimiter              ? must come after UseAuthorization
+MapControllers
+MapRazorPages
+MapFallbackToFile
+```
+
+## Key concepts
+
+### SecurityHeadersMiddleware
+
+```csharp
+// Java: http.headers().contentSecurityPolicy("default-src 'self'")
+headers["Content-Security-Policy"] = "default-src 'self'; ...";
+headers["X-Frame-Options"]         = "DENY";
+headers["X-Content-Type-Options"]  = "nosniff";
+headers["Referrer-Policy"]         = "strict-origin-when-cross-origin";
+```
+
+### Cookie flags
+
+```csharp
+// Java: new Cookie("session", value).setHttpOnly(true).setSecure(true).setSameSite("Strict")
+Response.Cookies.Append("session", value, new CookieOptions
+{
+    HttpOnly = true,
+    Secure   = true,
+    SameSite = SameSiteMode.Strict
+});
+```
+
+### Anti-forgery (IAntiforgery)
+
+```csharp
+// GET /api/login/token — returns token for SPA to include in X-CSRF-TOKEN header
+var tokens = _antiforgery.GetAndStoreTokens(HttpContext);
+return Ok(new { token = tokens.RequestToken, headerName = tokens.HeaderName });
+```
+
+### Rate limiting
+
+```csharp
+// Registration
+builder.Services.AddRateLimiter(options =>
+    options.AddFixedWindowLimiter("login", cfg => {
+        cfg.PermitLimit = 5;
+        cfg.Window = TimeSpan.FromMinutes(1);
+    }));
+
+// Usage — on the action method
+[EnableRateLimiting("login")]
+public IActionResult Login(...) { ... }
+```
+
+## Project structure (new / changed files)
+
+```
+Lesson/
+  Middleware/
+    SecurityHeadersMiddleware.cs  NEW  CSP + X-Frame-Options + X-Content-Type-Options + Referrer-Policy
+  Controllers/
+    LoginController.cs            NEW  GET /api/login/token, POST /api/login with [EnableRateLimiting]
+  Program.cs                      MOD  SecurityHeadersMiddleware, cookie policy, IAntiforgery config,
+                                       AddRateLimiter + UseRateLimiter
+Lesson.Tests/
+  SecurityHeadersTests.cs         NEW  7 tests (headers, cookie flags, anti-forgery, XSS encoding)
+  (RateLimitingTests class)        NEW  1 test (429 on 6th request)
+```
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~SecurityHeadersTests|FullyQualifiedName~RateLimitingTests"
+# 8 tests — all pass
+```
+
+## Exercises
+
+1. Add a `Permissions-Policy` response header disabling camera and microphone: `camera=(), microphone=()`.
+2. Change the anti-forgery cookie to `HttpOnly = true` and update the SPA to read the token from the response body instead.
+3. Switch the rate limiter from fixed-window to a **sliding-window** policy and observe the difference in behaviour under burst load.
+4. Add a `[ValidateAntiForgeryToken]` attribute to a controller action and write a test verifying the token must be present.
+
+---
 
 > **Branch:** `lesson/26-frontend-security/b-intermediate`
 > **Prerequisites:** Lesson 26-A (static files, CORS)

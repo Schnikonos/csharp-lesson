@@ -41,8 +41,10 @@ using Lesson.Templating;
 using Lesson.Validators;
 using FluentValidation;
 using MediatR;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Quartz;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -184,6 +186,46 @@ builder.Services.AddCors(options =>
               .AllowCredentials());
 });
 
+// ----- 26-C: Security headers middleware -----
+builder.Services.AddTransient<SecurityHeadersMiddleware>();
+
+// ----- 26-C: Cookie policy -----
+// Configures defaults for all cookies: HttpOnly, Secure, SameSite=Strict.
+// Java parallel: Spring Security's CookieCsrfTokenRepository + session cookie config
+builder.Services.Configure<CookiePolicyOptions>(options =>
+{
+    options.HttpOnly     = Microsoft.AspNetCore.CookiePolicy.HttpOnlyPolicy.Always;
+    options.Secure       = CookieSecurePolicy.SameAsRequest; // SameAsRequest allows HTTP in dev
+    options.MinimumSameSitePolicy = SameSiteMode.Strict;
+});
+
+// ----- 26-C: Anti-forgery -----
+// IAntiforgery is registered by AddRazorPages but we configure it explicitly here
+// so the token header name matches common SPA conventions.
+// Java parallel: Spring Security CsrfConfigurer + CsrfTokenRepository
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-CSRF-TOKEN";  // SPA sends token in this header
+    options.Cookie.Name = "XSRF-TOKEN";  // Angular convention
+    options.Cookie.HttpOnly = false;      // Angular reads this cookie from JS
+    options.Cookie.SameSite = SameSiteMode.Strict;
+});
+
+// ----- 26-C: Rate limiting -----
+// Fixed-window rate limiter: max 5 login attempts per minute per IP.
+// Java parallel: Resilience4j @RateLimiter / bucket4j-spring-boot-starter
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("login", cfg =>
+    {
+        cfg.PermitLimit       = 5;
+        cfg.Window            = TimeSpan.FromMinutes(1);
+        cfg.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        cfg.QueueLimit        = 0;
+    });
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
+
 builder.Services.AddControllers(options =>
 {
     // ----- 06-B: Register action filters globally -----
@@ -216,6 +258,13 @@ if (app.Environment.IsDevelopment())
 app.MapGet("/minimal/secure", () => Results.Ok(new { secret = "you have the key!" }))
    .AddEndpointFilter(new ApiKeyEndpointFilter("lesson06"));
 
+// ----- 26-C: Security headers (CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy) -----
+// Must come early so headers are added to ALL responses including static files.
+app.UseMiddleware<SecurityHeadersMiddleware>();
+
+// ----- 26-C: Cookie policy -----
+app.UseCookiePolicy();
+
 // ----- 06-A: Middleware pipeline — ORDER MATTERS -----
 // ResponseHeaderMiddleware wraps everything below it.
 app.UseMiddleware<ResponseHeaderMiddleware>();
@@ -247,6 +296,8 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.UseAuthorization();
+// ----- 26-C: Rate limiter (must come after UseAuthorization) -----
+app.UseRateLimiter();
 app.MapControllers();
 // ----- 26-B: map Razor Pages routes (/Statement, etc.) -----
 app.MapRazorPages();
