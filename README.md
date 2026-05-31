@@ -1,4 +1,38 @@
-# Lesson 17-A — MassTransit In-Memory Bus: IPublishEndpoint, IConsumer\<T\>, ITestHarness
+# Lesson 17-B — MassTransit Request/Response: IRequestClient\<T\>, Consumer Reply
+
+> **Branch:** `lesson/17-messaging/b-intermediate`
+
+## Key concepts
+
+```csharp
+// Consumer that REPLIES (request/response RPC over the bus)
+public class GetAccountBalanceConsumer : IConsumer<GetAccountBalanceRequest>
+{
+    public async Task Consume(ConsumeContext<GetAccountBalanceRequest> ctx)
+    {
+        var account = await uow.Accounts.GetByIdAsync(ctx.Message.AccountId);
+        await ctx.RespondAsync(new GetAccountBalanceResponse(...));
+    }
+}
+
+// Controller using IRequestClient — sends and awaits the reply
+[HttpGet("balance/{id}")]
+public async Task<IActionResult> GetBalance(int id, CancellationToken ct)
+{
+    var resp = await _client.GetResponse<GetAccountBalanceResponse>(
+        new GetAccountBalanceRequest(id), ct);
+    return Ok(resp.Message);
+}
+```
+
+**Java parallel:** `RabbitTemplate.convertSendAndReceive()` / Spring Integration `@Gateway`
+
+## Tests
+```bash
+dotnet test --filter "FullyQualifiedName~MessagingIntermediateTests"
+# 4 tests — all pass
+```
+
 
 > **Branch:** `lesson/17-messaging/a-basic`
 > **Prerequisites:** Lesson 16-C (async/channels)
