@@ -1,4 +1,117 @@
-# Lesson 13-A — JWT Authentication: Login, [Authorize], Claims
+# Lesson 13-B — Role-based Authorization + Custom IAuthorizationHandler
+
+> **Branch:** `lesson/13-auth-jwt/b-intermediate`
+> **Prerequisites:** Lesson 13-A (JWT bearer setup)
+
+---
+
+## What you will learn
+
+| Topic | C# ASP.NET Core | Java Spring Security |
+|---|---|---|
+| Role guard on endpoint | `[Authorize(Roles = "Teller,Manager")]` | `@PreAuthorize("hasAnyRole('TELLER','MANAGER')")` |
+| Role check in code | `User.IsInRole("Manager")` | `auth.getAuthorities().contains(...)` |
+| Custom requirement | `IAuthorizationRequirement` + `AuthorizationHandler<TReq, TResource>` | `@Component` that implements `PermissionEvaluator` |
+| Register policy | `options.AddPolicy("Name", p => p.Requirements.Add(...))` | `@PreAuthorize("@myBean.check(...)")` |
+| Evaluate policy | `IAuthorizationService.AuthorizeAsync(User, resource, "Name")` | Handled by `@PreAuthorize` AOP |
+| 401 vs 403 | 401 = not authenticated; 403 = authenticated but forbidden | Same semantics |
+
+---
+
+## 1. Role-based access in one attribute
+
+```csharp
+[HttpPost("transfer")]
+[Authorize(Roles = "Teller,Manager")]   // comma-separated = OR
+public IActionResult Transfer(...) { ... }
+```
+
+---
+
+## 2. Custom IAuthorizationRequirement
+
+Useful when the "can access?" logic depends on **runtime data** (the specific resource being accessed), not just a static role.
+
+```csharp
+// 1. Marker requirement (no extra properties needed here)
+public class AccountOwnerRequirement : IAuthorizationRequirement { }
+
+// 2. Handler checks role OR ownership
+public class AccountOwnerHandler
+    : AuthorizationHandler<AccountOwnerRequirement, BankingResource>
+{
+    protected override Task HandleRequirementAsync(
+        AuthorizationHandlerContext context,
+        AccountOwnerRequirement     requirement,
+        BankingResource             resource)
+    {
+        if (context.User.IsInRole("Manager"))       // managers can do everything
+            context.Succeed(requirement);
+        else if (context.User.FindFirstValue(ClaimTypes.Name) == resource.OwnerId)
+            context.Succeed(requirement);           // owner can close own account
+        return Task.CompletedTask;
+    }
+}
+
+// 3. Register in Program.cs
+services.AddAuthorization(o =>
+    o.AddPolicy("AccountOwner", p => p.Requirements.Add(new AccountOwnerRequirement())));
+services.AddScoped<IAuthorizationHandler, AccountOwnerHandler>();
+
+// 4. Use in controller
+var result = await _authz.AuthorizeAsync(User, resource, "AccountOwner");
+if (!result.Succeeded) return Forbid();
+```
+
+**Java parallel:**
+```java
+@PreAuthorize("@bankingSecurity.canClose(authentication, #id)")
+@DeleteMapping("/accounts/{id}")
+public ResponseEntity<?> closeAccount(@PathVariable Long id) { ... }
+
+@Component
+public class BankingSecurity {
+    public boolean canClose(Authentication auth, Long id) {
+        return auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_MANAGER"))
+            || auth.getName().equals(id.toString());
+    }
+}
+```
+
+---
+
+## Project Structure (new / changed files)
+
+```
+Lesson/
+  Controllers/
+    BankingAuthController.cs  NEW  GET /banking/balance, POST /banking/transfer,
+                                   DELETE /banking/accounts/{id},
+                                   AccountOwnerRequirement, AccountOwnerHandler,
+                                   BankingResource, TransferRequest
+  Program.cs                       + AddAuthorization policy "AccountOwner",
+                                   + AddScoped<IAuthorizationHandler, AccountOwnerHandler>
+Lesson.Tests/
+  RoleBasedAuthTests.cs       NEW  8 integration tests (role guard, custom policy, 401 vs 403)
+```
+
+---
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~RoleBasedAuthTests"
+# 8 tests — all pass
+```
+
+---
+
+## Exercises
+
+1. Add a `Guest` role to the in-memory user store and test that a Guest gets 403 on `POST /banking/transfer`.
+2. Extract `AccountOwnerHandler` into its own file under `Lesson/Authorization/` — this is the real-world placement pattern.
+3. Add a `MinimumBalanceRequirement(decimal minimum)` that only allows transfers when the caller's account balance exceeds a threshold — pass the requirement a balance via the resource object.
+
 
 > **Branch:** `lesson/13-auth-jwt/a-basic`
 > **Prerequisites:** Lesson 12-C (integration tests)

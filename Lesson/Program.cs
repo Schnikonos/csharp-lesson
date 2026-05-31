@@ -35,6 +35,7 @@ using Lesson.Middleware;
 using Lesson.Options;
 using Lesson.Pipeline;
 using Lesson.Repositories;
+using Microsoft.AspNetCore.Authorization;
 using Lesson.Controllers;
 using Lesson.ScheduledTasks;
 using Lesson.UnitOfWork;
@@ -158,6 +159,12 @@ builder.Services.AddAuthentication(options =>
     };
 });
 builder.Services.AddAuthorization();
+
+// ----- 13-B: Role/claim-based authorization -----
+builder.Services.AddAuthorization(options =>
+    options.AddPolicy("AccountOwner", policy =>
+        policy.Requirements.Add(new AccountOwnerRequirement())));
+builder.Services.AddScoped<IAuthorizationHandler, AccountOwnerHandler>();
 
 // ----- 08-C: Channel<T> outbox queue + background consumer -----
 builder.Services.AddSingleton<OutboxChannel>();
