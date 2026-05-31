@@ -4,3 +4,9 @@
 
 /Lesson.slnx
 /.vs
+
+# Build outputs
+**/bin/
+**/obj/
+*.user
+*.Backup.tmp
