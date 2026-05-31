@@ -275,6 +275,16 @@ builder.Services.AddQuartzHostedService(opts =>
 // Java parallel: @EnableGrpc / spring-grpc starter
 builder.Services.AddGrpc();
 
+// ----- 21-B: API Versioning via URL segment -----
+// AddApiVersioning + AddMvc() registers versioning for both controllers and minimal APIs.
+// Java parallel: spring-doc API versioning / @ApiVersion
+builder.Services.AddApiVersioning(options =>
+{
+    options.DefaultApiVersion = new Asp.Versioning.ApiVersion(1);
+    options.AssumeDefaultVersionWhenUnspecified = true;
+    options.ReportApiVersions = true;
+}).AddMvc();
+
 builder.Services.AddControllers(options =>
 {
     // ----- 06-B: Register action filters globally -----
