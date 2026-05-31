@@ -1,4 +1,81 @@
-# Lesson 19 — Domain-Driven Design (DDD)
+# Lesson 20 — gRPC
+
+> **Branch family:** `lesson/20-grpc/{a-basic,b-intermediate}`
+
+## 20-A — Unary RPC (request ? response)
+
+```protobuf
+// Protos/banking.proto
+service BankingService {
+  rpc GetAccount    (GetAccountRequest)    returns (AccountReply);
+  rpc CreateAccount (CreateAccountRequest) returns (AccountReply);
+  rpc ListAccounts  (ListAccountsRequest)  returns (stream AccountReply);
+}
+```
+
+```csharp
+// Server — inherits from generated base class
+public class GrpcBankingService(BankingDbContext db) : BankingService.BankingServiceBase
+{
+    public override async Task<AccountReply> GetAccount(
+        GetAccountRequest request, ServerCallContext context)
+    {
+        var entity = await db.BankAccounts.FindAsync([request.Id], context.CancellationToken);
+        if (entity is null)
+            throw new RpcException(new Status(StatusCode.NotFound, $"Account {request.Id} not found"));
+        return Map(entity);
+    }
+}
+
+// Program.cs — registration
+builder.Services.AddGrpc();
+app.MapGrpcService<GrpcBankingService>();
+
+// Test — in-process GrpcChannel backed by WebApplicationFactory
+var channel = GrpcChannel.ForAddress(httpClient.BaseAddress!, new GrpcChannelOptions { HttpClient = httpClient });
+var client  = new BankingService.BankingServiceClient(channel);
+var reply   = await client.CreateAccountAsync(new CreateAccountRequest { ... });
+```
+
+**Java parallel:**  
+`@GrpcService` extending `BankingServiceGrpc.BankingServiceImplBase` ? `BankingService.BankingServiceBase`.  
+`StreamObserver.onNext/onCompleted` ? `async Task<TReply>` return.  
+`ManagedChannelBuilder.forAddress(...)` ? `GrpcChannel.ForAddress(...)`.
+
+## 20-B — Server-streaming RPC + deadline / cancellation
+
+```csharp
+// Server-streaming: write each row to the response stream
+public override async Task ListAccounts(
+    ListAccountsRequest request,
+    IServerStreamWriter<AccountReply> responseStream,
+    ServerCallContext context)
+{
+    var accounts = await db.BankAccounts.ToListAsync(context.CancellationToken);
+    foreach (var a in accounts)
+    {
+        context.CancellationToken.ThrowIfCancellationRequested();
+        await responseStream.WriteAsync(Map(a), context.CancellationToken);
+    }
+}
+
+// Client-side: async-enumerate the stream
+var call = client.ListAccounts(new ListAccountsRequest(),
+    deadline: DateTime.UtcNow.AddSeconds(5));         // deadline propagated to server
+await foreach (var reply in call.ResponseStream.ReadAllAsync(cancellationToken))
+    list.Add(reply);
+```
+
+**Java parallel:**  
+`StreamObserver<AccountReply>` ? `IServerStreamWriter<AccountReply>`.  
+`stub.withDeadlineAfter(5, SECONDS)` ? `deadline: DateTime.UtcNow.AddSeconds(5)`.
+
+## Tests
+```bash
+dotnet test --filter "FullyQualifiedName~GrpcBasicTests"       # 4 tests
+dotnet test --filter "FullyQualifiedName~GrpcStreamingTests"   # 4 tests
+```
+
 
 > **Branch family:** `lesson/19-ddd/{a-basic,b-intermediate,c-advanced}`
 

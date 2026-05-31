@@ -14,6 +14,11 @@
     </PackageReference>
     <PackageReference Include="FluentAssertions" Version="8.4.0" />
     <PackageReference Include="FluentValidation" Version="11.5.1" />
+    <PackageReference Include="Grpc.Net.Client" Version="2.80.0" />
+    <PackageReference Include="Grpc.Tools" Version="2.80.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="MassTransit" Version="9.1.1" />
     <PackageReference Include="MediatR" Version="12.4.1" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.8" />
@@ -30,6 +35,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Lesson\Lesson.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Lesson 20: generate gRPC client from the same proto as the server -->
+    <Protobuf Include="..\Lesson\Protos\banking.proto" GrpcServices="Client" />
   </ItemGroup>
 
 </Project>

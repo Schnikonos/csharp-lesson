@@ -270,6 +270,10 @@ builder.Services.AddQuartz(q =>
 builder.Services.AddQuartzHostedService(opts =>
     opts.WaitForJobsToComplete = true);      // graceful shutdown waits for running jobs
 
+// ----- 20-A: gRPC — adds HTTP/2 + Protobuf service infrastructure -----
+// Java parallel: @EnableGrpc / spring-grpc starter
+builder.Services.AddGrpc();
+
 builder.Services.AddControllers(options =>
 {
     // ----- 06-B: Register action filters globally -----
@@ -373,6 +377,9 @@ app.UseResponseCaching();
 app.UseOutputCache();
 app.UseAuthorization();
 app.MapControllers();
+// ----- 20-A: gRPC endpoint — served on HTTP/2 alongside REST (HTTP/1.1) -----
+// Java parallel: @GrpcService class registration picked up by spring-grpc
+app.MapGrpcService<Lesson.Services.GrpcBankingService>();
 // ----- 15-C: Health check endpoint -----
 // /health — returns 200 Healthy / 503 Unhealthy + JSON payload.
 // Java parallel: GET /actuator/health
