@@ -35,6 +35,7 @@ using Lesson.Middleware;
 using Lesson.Options;
 using Lesson.Pipeline;
 using Lesson.Repositories;
+using Lesson.Controllers;
 using Lesson.ScheduledTasks;
 using Lesson.UnitOfWork;
 using Lesson.Validators;
@@ -133,6 +134,31 @@ builder.Services.AddSingleton<Lesson.Subscribers.PaymentAuditSubscriber>();
 // In production: .PersistKeysToAzureBlobStorage(...) + .ProtectKeysWithAzureKeyVault(...)
 builder.Services.AddDataProtection();
 
+// ----- 13-A: JWT Authentication -----
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
+var jwtOpts = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme    = Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+    {
+        ValidateIssuer           = true,
+        ValidateAudience         = true,
+        ValidateLifetime         = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer              = jwtOpts.Issuer,
+        ValidAudience            = jwtOpts.Audience,
+        IssuerSigningKey         = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
+                                       System.Text.Encoding.UTF8.GetBytes(jwtOpts.SecretKey)),
+    };
+});
+builder.Services.AddAuthorization();
+
 // ----- 08-C: Channel<T> outbox queue + background consumer -----
 builder.Services.AddSingleton<OutboxChannel>();
 builder.Services.AddSingleton<OutboxConsumerService>();
@@ -203,6 +229,8 @@ app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseExceptionHandler();
 
 app.UseHttpsRedirection();
+// ----- 13-A: Auth middleware must come AFTER exception handler, BEFORE MapControllers -----
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();

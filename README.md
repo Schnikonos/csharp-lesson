@@ -1,4 +1,127 @@
-# Lesson 12-C — Integration Tests: WebApplicationFactory + SQLite + Coverage
+# Lesson 13-A — JWT Authentication: Login, [Authorize], Claims
+
+> **Branch:** `lesson/13-auth-jwt/a-basic`
+> **Prerequisites:** Lesson 12-C (integration tests)
+
+---
+
+## What you will learn
+
+| Topic | C# ASP.NET Core | Java Spring Security |
+|---|---|---|
+| Add JWT bearer scheme | `AddAuthentication().AddJwtBearer(...)` | `@EnableWebSecurity` + `JwtAuthenticationFilter` |
+| Protect endpoint | `[Authorize]` | `@PreAuthorize` / `SecurityConfig.authorizeRequests()` |
+| Allow anonymous | `[AllowAnonymous]` | `permitAll()` |
+| Read identity | `HttpContext.User.Identity?.Name` | `SecurityContextHolder.getContext().getAuthentication()` |
+| Read specific claim | `User.FindFirstValue(ClaimTypes.Role)` | `authentication.getAuthorities()` |
+| Issue a token | `JwtSecurityTokenHandler().WriteToken(...)` | JJWT `Jwts.builder()...compact()` |
+| Validate in middleware | Handled automatically by `UseAuthentication()` | `OncePerRequestFilter` reading `Authorization` header |
+
+---
+
+## 1. Token pipeline
+
+```
+POST /auth/login
+  ? validate credentials (BCrypt)
+  ? build JwtSecurityToken (claims + signing key)
+  ? return { token, expiresIn }
+
+GET /auth/me  (Authorization: Bearer <token>)
+  ? UseAuthentication() middleware validates signature + expiry
+  ? if valid, populates HttpContext.User with claims
+  ? [Authorize] attribute allows the request through
+  ? controller reads User.Identity.Name and ClaimTypes.Role
+```
+
+---
+
+## 2. Issuing a token
+
+```csharp
+var key  = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)); // ? 32 bytes
+var cred = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+var token = new JwtSecurityToken(
+    issuer:   "MyApp",
+    audience: "MyApp",
+    claims:   [new Claim(ClaimTypes.Name, "alice"), new Claim(ClaimTypes.Role, "Teller")],
+    expires:  DateTime.UtcNow.AddHours(1),
+    signingCredentials: cred);
+
+return new JwtSecurityTokenHandler().WriteToken(token);
+```
+
+---
+
+## 3. Registration in Program.cs
+
+```csharp
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer           = true,
+            ValidateAudience         = true,
+            ValidateLifetime         = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer              = "MyApp",
+            ValidAudience            = "MyApp",
+            IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
+        };
+    });
+builder.Services.AddAuthorization();
+
+// In pipeline — ORDER MATTERS: Authentication before Authorization
+app.UseAuthentication();
+app.UseAuthorization();
+```
+
+**Java parallel:**
+```java
+@Bean
+SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    return http
+        .authorizeHttpRequests(a -> a.requestMatchers("/auth/login").permitAll().anyRequest().authenticated())
+        .addFilterBefore(new JwtAuthFilter(secretKey), UsernamePasswordAuthenticationFilter.class)
+        .build();
+}
+```
+
+---
+
+## Project Structure (new / changed files)
+
+```
+Lesson/
+  Controllers/
+    JwtAuthController.cs   NEW  POST /auth/login, GET /auth/me, GET /auth/profile, JwtOptions
+  appsettings.json               + "Jwt" section (SecretKey, Issuer, Audience, ExpirySeconds)
+  Program.cs                     + JwtOptions wiring, AddAuthentication/AddJwtBearer, UseAuthentication
+Lesson.Tests/
+  JwtAuthTests.cs          NEW  10 integration tests (login, 401 for bad creds, 401 without token,
+                                claims assertions, tampered token rejection)
+```
+
+---
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~JwtAuthTests"
+# 10 tests — all pass
+```
+
+---
+
+## Exercises
+
+1. Add a `GET /auth/admin` endpoint decorated with `[Authorize(Roles = "Manager")]` and write tests that assert a Teller gets 403 and a Manager gets 200.
+2. Add an `ExpirySeconds = 1` test-only JwtOptions override in the factory — wait 2 seconds, then assert an expired token returns 401.
+3. Decode the JWT without a library: split the token on `.`, Base64Url-decode the middle part, and pretty-print the JSON payload — observe the `sub`, `role`, `exp`, and `jti` claims.
+
 
 > **Branch:** `lesson/12-unit-testing/c-advanced`
 > **Prerequisites:** Lesson 12-B (Moq, FluentAssertions)
