@@ -1,8 +1,8 @@
-# Lesson 20 ó gRPC
+Ôªø# Lesson 20 ÔøΩ gRPC
 
 > **Branch family:** `lesson/20-grpc/{a-basic,b-intermediate}`
 
-## 20-A ó Unary RPC (request ? response)
+## 20-A ÔøΩ Unary RPC (request ? response)
 
 ```protobuf
 // Protos/banking.proto
@@ -14,7 +14,7 @@ service BankingService {
 ```
 
 ```csharp
-// Server ó inherits from generated base class
+// Server ÔøΩ inherits from generated base class
 public class GrpcBankingService(BankingDbContext db) : BankingService.BankingServiceBase
 {
     public override async Task<AccountReply> GetAccount(
@@ -27,11 +27,11 @@ public class GrpcBankingService(BankingDbContext db) : BankingService.BankingSer
     }
 }
 
-// Program.cs ó registration
+// Program.cs ÔøΩ registration
 builder.Services.AddGrpc();
 app.MapGrpcService<GrpcBankingService>();
 
-// Test ó in-process GrpcChannel backed by WebApplicationFactory
+// Test ÔøΩ in-process GrpcChannel backed by WebApplicationFactory
 var channel = GrpcChannel.ForAddress(httpClient.BaseAddress!, new GrpcChannelOptions { HttpClient = httpClient });
 var client  = new BankingService.BankingServiceClient(channel);
 var reply   = await client.CreateAccountAsync(new CreateAccountRequest { ... });
@@ -42,7 +42,7 @@ var reply   = await client.CreateAccountAsync(new CreateAccountRequest { ... });
 `StreamObserver.onNext/onCompleted` ? `async Task<TReply>` return.  
 `ManagedChannelBuilder.forAddress(...)` ? `GrpcChannel.ForAddress(...)`.
 
-## 20-B ó Server-streaming RPC + deadline / cancellation
+## 20-B ÔøΩ Server-streaming RPC + deadline / cancellation
 
 ```csharp
 // Server-streaming: write each row to the response stream
@@ -79,7 +79,7 @@ dotnet test --filter "FullyQualifiedName~GrpcStreamingTests"   # 4 tests
 
 > **Branch family:** `lesson/19-ddd/{a-basic,b-intermediate,c-advanced}`
 
-## 19-A ó Building Blocks: AggregateRoot, ValueObject, Money
+## 19-A ÔøΩ Building Blocks: AggregateRoot, ValueObject, Money
 
 ```csharp
 // ?? AggregateRoot ?? collects domain events raised internally
@@ -132,7 +132,7 @@ public class BankAccountAggregate : AggregateRoot
 `AbstractAggregateRoot<T>` domain events ? `AggregateRoot.RaiseDomainEvent`.  
 Vavr immutable value types ? `record struct`.
 
-## 19-B ó Repository Abstraction + Anti-Corruption Layer
+## 19-B ÔøΩ Repository Abstraction + Anti-Corruption Layer
 
 ```csharp
 // Domain layer: knows nothing about EF Core
@@ -162,7 +162,7 @@ public class EfAggregateRepository(BankingDbContext db, IPublisher publisher) : 
     }
 }
 
-// Reconstruct aggregate from persistence ó no invariant enforcement needed
+// Reconstruct aggregate from persistence ÔøΩ no invariant enforcement needed
 internal static BankAccountAggregate Reconstruct(int id, string number, string owner, Money balance) =>
     new() { Id = id, AccountNumber = number, OwnerName = owner, Balance = balance };
 ```
@@ -172,7 +172,7 @@ Spring Data repository interface ? `IAggregateRepository`.
 `@Repository` EF implementation ? `EfAggregateRepository`.  
 ACL adapter translating between bounded contexts ? `MapToDomain`/`MapToEntity`.
 
-## 19-C ó Bounded Contexts, IUnitOfWork + Domain Events, Optimistic Concurrency
+## 19-C ÔøΩ Bounded Contexts, IUnitOfWork + Domain Events, Optimistic Concurrency
 
 | Concept | C# | Java |
 |---|---|---|
@@ -190,17 +190,17 @@ dotnet test --filter "FullyQualifiedName~DddAdvancedTests"       # 4 tests
 
 > **Branch family:** `lesson/18-cqrs-mediatr/{a-basic,b-intermediate,c-advanced}`
 
-## 18-A ó Command/Query split + ISender dispatch
+## 18-A ÔøΩ Command/Query split + ISender dispatch
 
 ```csharp
 // Marker interfaces make intent explicit at the type level
 public interface ICommand<out T> : IRequest<T> { }
 public interface IQuery<out T>   : IRequest<T> { }
 
-// Command handler ó mutates state
+// Command handler ÔøΩ mutates state
 public class CreateAccountCommandHandler(IUnitOfWork uow) : IRequestHandler<CreateAccountCommand, int> { ... }
 
-// Query handler ó read only, returns a DTO
+// Query handler ÔøΩ read only, returns a DTO
 public class GetAllAccountsQueryHandler(IUnitOfWork uow) : IRequestHandler<GetAllAccountsQuery, IReadOnlyList<AccountSummaryDto>> { ... }
 
 // Controller has zero business logic
@@ -210,7 +210,7 @@ public class GetAllAccountsQueryHandler(IUnitOfWork uow) : IRequestHandler<GetAl
 
 **Java parallel:** Axon `@CommandHandler` / `@QueryHandler`; Spring service delegating to dedicated handler classes.
 
-## 18-B ó Pipeline behaviours (AOP-like middleware)
+## 18-B ÔøΩ Pipeline behaviours (AOP-like middleware)
 
 ```
 Request ? LoggingBehavior ? ValidationBehavior ? TransactionBehavior ? Handler ? Response
@@ -237,17 +237,17 @@ services.AddTransient(typeof(IPipelineBehavior<,>), typeof(TransactionBehavior<,
 
 **Java parallel:** Spring AOP `@Around` advice; `@Order` to control advice precedence.
 
-## 18-C ó INotification domain events dispatched post-commit
+## 18-C ÔøΩ INotification domain events dispatched post-commit
 
 ```csharp
 // Domain event
 public record AccountCreatedDomainEvent(...) : INotification;
 
-// Multiple subscribers ó all run
+// Multiple subscribers ÔøΩ all run
 public class AuditHandler   : INotificationHandler<AccountCreatedDomainEvent> { ... }
 public class WelcomeHandler : INotificationHandler<AccountCreatedDomainEvent> { ... }
 
-// Publish after SaveChanges ó keeps write-model atomic
+// Publish after SaveChanges ÔøΩ keeps write-model atomic
 await uow.CommitAsync(ct);
 await publisher.Publish(new AccountCreatedDomainEvent(...), ct);
 ```
@@ -277,7 +277,7 @@ TransferFailedEvent      ?  [any state]     ?  Failed ? Finalized
 ## Key pattern
 
 ```csharp
-// 1. State class ó persisted between steps
+// 1. State class ÔøΩ persisted between steps
 public class TransferSagaState : SagaStateMachineInstance
 {
     public Guid   CorrelationId { get; set; }  // MassTransit saga identity
@@ -286,7 +286,7 @@ public class TransferSagaState : SagaStateMachineInstance
     public decimal Amount       { get; set; }
 }
 
-// 2. State machine ó declares states, events, transitions
+// 2. State machine ÔøΩ declares states, events, transitions
 public class TransferStateMachine : MassTransitStateMachine<TransferSagaState>
 {
     public State Failed { get; private set; } = null!;
@@ -319,7 +319,7 @@ builder.Services.AddMassTransit(x => {
 ## Tests
 ```bash
 dotnet test --filter "FullyQualifiedName~MessagingAdvancedTests"
-# 3 tests ó all pass
+# 3 tests ÔøΩ all pass
 ```
 
 
@@ -338,7 +338,7 @@ public class GetAccountBalanceConsumer : IConsumer<GetAccountBalanceRequest>
     }
 }
 
-// Controller using IRequestClient ó sends and awaits the reply
+// Controller using IRequestClient ÔøΩ sends and awaits the reply
 [HttpGet("balance/{id}")]
 public async Task<IActionResult> GetBalance(int id, CancellationToken ct)
 {
@@ -353,7 +353,7 @@ public async Task<IActionResult> GetBalance(int id, CancellationToken ct)
 ## Tests
 ```bash
 dotnet test --filter "FullyQualifiedName~MessagingIntermediateTests"
-# 4 tests ó all pass
+# 4 tests ÔøΩ all pass
 ```
 
 
@@ -373,10 +373,10 @@ dotnet test --filter "FullyQualifiedName~MessagingIntermediateTests"
 ## Key code pattern
 
 ```csharp
-// 1. Define a message contract (plain record ó no MassTransit dependency)
+// 1. Define a message contract (plain record ÔøΩ no MassTransit dependency)
 public record AccountCreatedEvent(int AccountId, string AccountNumber, ...);
 
-// 2. Consumer ó receives every published AccountCreatedEvent
+// 2. Consumer ÔøΩ receives every published AccountCreatedEvent
 public class AccountCreatedConsumer : IConsumer<AccountCreatedEvent>
 {
     public Task Consume(ConsumeContext<AccountCreatedEvent> ctx)
@@ -413,13 +413,13 @@ await ch.Consumed.Any<AccountCreatedEvent>()    // assert consumed
 ```
 
 ## Exercises
-1. Add a `BalanceChangedEvent` published from the transfer endpoint ó write a consumer that logs it.
-2. Add a second consumer for `AccountCreatedEvent` that sends a welcome email (just log it) ó verify both consumers fire.
+1. Add a `BalanceChangedEvent` published from the transfer endpoint ÔøΩ write a consumer that logs it.
+2. Add a second consumer for `AccountCreatedEvent` that sends a welcome email (just log it) ÔøΩ verify both consumers fire.
 
 ## Tests
 ```bash
 dotnet test --filter "FullyQualifiedName~MessagingDemoTests"
-# 4 tests ó all pass
+# 4 tests ÔøΩ all pass
 ```
 
 
@@ -440,10 +440,10 @@ dotnet test --filter "FullyQualifiedName~MessagingDemoTests"
 
 ---
 
-## 1. Channel\<T\> ó producer/consumer pipeline
+## 1. Channel\<T\> ÔøΩ producer/consumer pipeline
 
 ```csharp
-// Create a bounded channel ó back-pressure when full
+// Create a bounded channel ÔøΩ back-pressure when full
 var channel = Channel.CreateBounded<int>(new BoundedChannelOptions(100)
 {
     FullMode    = BoundedChannelFullMode.Wait,  // producer awaits if full
@@ -472,7 +472,7 @@ Integer item = queue.poll(1, SECONDS); // consumer
 
 ---
 
-## 2. IAsyncEnumerable\<T\> ó async streaming
+## 2. IAsyncEnumerable\<T\> ÔøΩ async streaming
 
 ```csharp
 // Yield results one by one as they arrive from IO
@@ -487,7 +487,7 @@ private async IAsyncEnumerable<Account?> StreamAsync(
     }
 }
 
-// Controller return type ó ASP.NET Core streams the JSON array
+// Controller return type ÔøΩ ASP.NET Core streams the JSON array
 [HttpGet("stream")]
 public IAsyncEnumerable<object> Stream([FromQuery] string ids, CancellationToken ct)
     => StreamCore(ParseIds(ids), ct);
@@ -503,10 +503,10 @@ public Flux<Account> stream() {
 
 ---
 
-## 3. ValueTask\<T\> ó zero-allocation async
+## 3. ValueTask\<T\> ÔøΩ zero-allocation async
 
 ```csharp
-// Hot path: returns synchronously from cache ó NO heap allocation
+// Hot path: returns synchronously from cache ÔøΩ NO heap allocation
 private async ValueTask<decimal?> GetCachedBalanceAsync(int id)
 {
     if (_cache.TryGetValue(id, out var cached))
@@ -524,7 +524,7 @@ private async ValueTask<decimal?> GetCachedBalanceAsync(int id)
 
 ---
 
-## 4. ReaderWriterLockSlim ó concurrent reads, exclusive writes
+## 4. ReaderWriterLockSlim ÔøΩ concurrent reads, exclusive writes
 
 ```csharp
 private static readonly ReaderWriterLockSlim _rw = new();
@@ -577,15 +577,15 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~ChannelTests"
-# 9 tests ó all pass
+# 9 tests ÔøΩ all pass
 ```
 
 ---
 
 ## Exercises
 
-1. Convert `ChannelController` to use an `IHostedService` background consumer that reads from the channel and logs each processed ID ó this is the idiomatic producer/consumer pattern in ASP.NET Core.
-2. Add a `GET /advanced-concurrency/stream-live` endpoint backed by a `Channel<T>` that streams items as they are enqueued (using `ReadAllAsync`) ó connect it to the `/enqueue` endpoint to build a live feed.
+1. Convert `ChannelController` to use an `IHostedService` background consumer that reads from the channel and logs each processed ID ÔøΩ this is the idiomatic producer/consumer pattern in ASP.NET Core.
+2. Add a `GET /advanced-concurrency/stream-live` endpoint backed by a `Channel<T>` that streams items as they are enqueued (using `ReadAllAsync`) ÔøΩ connect it to the `/enqueue` endpoint to build a live feed.
 3. Benchmark `ValueTask` vs `Task` on the cache-hit path using `BenchmarkDotNet`; confirm that `ValueTask` allocates ~0 bytes on the hot path.
 
 
@@ -611,7 +611,7 @@ dotnet test --filter "FullyQualifiedName~ChannelTests"
 ## 1. lock vs Interlocked
 
 ```csharp
-// lock ó use for multi-statement critical sections
+// lock ÔøΩ use for multi-statement critical sections
 private static readonly object _lock = new();
 private static int _count;
 
@@ -621,7 +621,7 @@ lock (_lock)
     // ... other state changes ...
 }
 
-// Interlocked ó use for single-value atomic ops; no lock overhead
+// Interlocked ÔøΩ use for single-value atomic ops; no lock overhead
 private static long _counter;
 var newValue = Interlocked.Increment(ref _counter);         // ++
 var old      = Interlocked.CompareExchange(ref _counter, 99, 5); // if==5 set to 99
@@ -640,13 +640,13 @@ counter.compareAndSet(5, 99);
 
 ---
 
-## 2. SemaphoreSlim ó async throttle
+## 2. SemaphoreSlim ÔøΩ async throttle
 
 ```csharp
 // Limit to 3 concurrent DB calls regardless of how many requests arrive
 private static readonly SemaphoreSlim _sem = new(3, 3);
 
-await _sem.WaitAsync(cancellationToken);  // async ó does NOT block a thread
+await _sem.WaitAsync(cancellationToken);  // async ÔøΩ does NOT block a thread
 try    { var data = await db.GetAsync(id); }
 finally { _sem.Release(); }
 ```
@@ -687,14 +687,14 @@ cache.computeIfAbsent(id, k -> computeExpensive(k));
 
 ---
 
-## 4. Parallel.ForEachAsync ó async data parallelism
+## 4. Parallel.ForEachAsync ÔøΩ async data parallelism
 
 ```csharp
 var options = new ParallelOptions { MaxDegreeOfParallelism = 4 };
 
 await Parallel.ForEachAsync(ids, options, async (id, ct) =>
 {
-    // IMPORTANT: each iteration must use its own DI scope ó
+    // IMPORTANT: each iteration must use its own DI scope ÔøΩ
     // DbContext is NOT thread-safe and cannot be shared across threads.
     await using var scope  = scopeFactory.CreateAsyncScope();
     var uow   = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
@@ -737,16 +737,16 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~ThreadSafetyTests"
-# 7 tests ó all pass
+# 7 tests ÔøΩ all pass
 ```
 
 ---
 
 ## Exercises
 
-1. Change `_semaphore` initial count from 3 to 1 (exclusive lock via semaphore) and fire 3 requests concurrently using `Task.WhenAll` against a real multi-connection DB ó verify they serialise correctly.
+1. Change `_semaphore` initial count from 3 to 1 (exclusive lock via semaphore) and fire 3 requests concurrently using `Task.WhenAll` against a real multi-connection DB ÔøΩ verify they serialise correctly.
 2. Replace the `lock + _requestCount` pattern in `GetStats` with an `Interlocked.Increment` and observe that the behaviour is identical but with no lock contention.
-3. Add a `ReaderWriterLockSlim` demo: allow concurrent reads but exclusive writes to a shared in-memory list of flagged account IDs ó this is the pattern for read-heavy shared state.
+3. Add a `ReaderWriterLockSlim` demo: allow concurrent reads but exclusive writes to a shared in-memory list of flagged account IDs ÔøΩ this is the pattern for read-heavy shared state.
 
 
 > **Branch:** `lesson/16-multithreading/a-basic`
@@ -773,7 +773,7 @@ dotnet test --filter "FullyQualifiedName~ThreadSafetyTests"
 
 ```csharp
 // Every async method is compiled into a state machine.
-// "await" does NOT block a thread ó it posts a continuation.
+// "await" does NOT block a thread ÔøΩ it posts a continuation.
 public async Task<Account?> GetAsync(int id)
 {
     // Thread A starts executing here
@@ -792,7 +792,7 @@ CompletableFuture<Account> getAsync(int id) {
 
 ---
 
-## 2. Task.WhenAll ó concurrent fan-out
+## 2. Task.WhenAll ÔøΩ concurrent fan-out
 
 ```csharp
 var tasks   = ids.Select(id => repo.GetByIdAsync(id)).ToList();
@@ -809,7 +809,7 @@ var results = futures.stream().map(CompletableFuture::join).toList();
 
 ---
 
-## 3. CancellationToken ó cooperative cancellation
+## 3. CancellationToken ÔøΩ cooperative cancellation
 
 ```csharp
 // ASP.NET Core automatically cancels HttpContext.RequestAborted when the client disconnects.
@@ -831,20 +831,20 @@ using var linked     = CancellationTokenSource.CreateLinkedTokenSource(
 ## 4. ConfigureAwait(false)
 
 ```csharp
-// Library / service code ó avoids unnecessarily capturing sync context
+// Library / service code ÔøΩ avoids unnecessarily capturing sync context
 var result = await SomeIoAsync().ConfigureAwait(false);
 
-// Controller code ó safe to omit (ASP.NET Core has no sync context in .NET 5+)
+// Controller code ÔøΩ safe to omit (ASP.NET Core has no sync context in .NET 5+)
 // but shown here as a teaching point
 ```
 
 ---
 
-## 5. Task.Run ó offloading CPU work
+## 5. Task.Run ÔøΩ offloading CPU work
 
 ```csharp
 // Only for genuinely CPU-bound work (PDF, image processing, crypto).
-// For IO work (DB, HTTP), use async IO methods directly ó Task.Run adds no value.
+// For IO work (DB, HTTP), use async IO methods directly ÔøΩ Task.Run adds no value.
 var sum = await Task.Run(() => {
     long acc = 0;
     for (var i = 0; i < n; i++) acc += i;
@@ -874,7 +874,7 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~ConcurrencyDemoTests"
-# 9 tests ó all pass
+# 9 tests ÔøΩ all pass
 ```
 
 ---
@@ -882,7 +882,7 @@ dotnet test --filter "FullyQualifiedName~ConcurrencyDemoTests"
 ## Exercises
 
 1. Change `BatchFetch` to use `Parallel.ForEachAsync` (introduced in .NET 6) instead of `Task.WhenAll` and observe the difference in thread pool usage.
-2. Add a `[HttpGet("sequential")]` endpoint that fetches the same N accounts sequentially (one `await` per account) ó benchmark it against the `batch` (WhenAll) endpoint with the same IDs and compare elapsed time.
+2. Add a `[HttpGet("sequential")]` endpoint that fetches the same N accounts sequentially (one `await` per account) ÔøΩ benchmark it against the `batch` (WhenAll) endpoint with the same IDs and compare elapsed time.
 3. Pass a `CancellationToken` into `GetByIdAsync` calls once you've added it to the repository interface, and verify the DB query is aborted when the client disconnects.
 
 
@@ -1031,7 +1031,7 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~OtelDemoTests"
-# 5 tests ó all pass
+# 5 tests ÔøΩ all pass
 # Console output shows real spans with TraceId / SpanId / Tags
 ```
 
@@ -1039,8 +1039,8 @@ dotnet test --filter "FullyQualifiedName~OtelDemoTests"
 
 ## Exercises
 
-1. Run Jaeger locally (`docker run -d -p 16686:16686 -p 4317:4317 jaegertracing/all-in-one`) and swap `.AddConsoleExporter()` for `.AddOtlpExporter()` ó observe the multi-span transfer trace in the UI.
-2. Add a `Meter("BankingApi")` static field to `OtelDemoController` and create a `Counter` that increments on each successful transfer ó verify it appears in the console metric output.
+1. Run Jaeger locally (`docker run -d -p 16686:16686 -p 4317:4317 jaegertracing/all-in-one`) and swap `.AddConsoleExporter()` for `.AddOtlpExporter()` ÔøΩ observe the multi-span transfer trace in the UI.
+2. Add a `Meter("BankingApi")` static field to `OtelDemoController` and create a `Counter` that increments on each successful transfer ÔøΩ verify it appears in the console metric output.
 3. Add a second health check for a dummy external dependency using `AddCheck("exchange-rate-api", () => HealthCheckResult.Healthy("API reachable"))` and verify `/health` shows both.
 
 
@@ -1077,7 +1077,7 @@ builder.Host.UseSerilog();  // replaces Microsoft.Extensions.Logging
 
 **Java parallel:**
 ```xml
-<!-- logback.xml ó replaces java.util.logging / commons-logging -->
+<!-- logback.xml ÔøΩ replaces java.util.logging / commons-logging -->
 <configuration>
   <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">...</appender>
   <root level="INFO"><appender-ref ref="CONSOLE"/></root>
@@ -1089,7 +1089,7 @@ builder.Host.UseSerilog();  // replaces Microsoft.Extensions.Logging
 ## 2. Correlation ID propagation
 
 ```csharp
-// Push a property onto the current async context ó
+// Push a property onto the current async context ÔøΩ
 // all log entries emitted below this line carry CorrelationId.
 using (LogContext.PushProperty("CorrelationId", correlationId))
 {
@@ -1164,14 +1164,14 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~SerilogDemoTests"
-# 4 tests ó all pass
+# 4 tests ÔøΩ all pass
 ```
 
 ---
 
 ## Exercises
 
-1. Add a `WriteTo.Seq("http://localhost:5341")` sink and run Seq locally (`docker run --rm -e ACCEPT_EULAS=Y -p 5341:80 datalust/seq`) ó query `CorrelationId = "test-cid-123"` in the UI.
+1. Add a `WriteTo.Seq("http://localhost:5341")` sink and run Seq locally (`docker run --rm -e ACCEPT_EULAS=Y -p 5341:80 datalust/seq`) ÔøΩ query `CorrelationId = "test-cid-123"` in the UI.
 2. Create an enricher that automatically reads `X-Correlation-ID` from the HTTP context and pushes it via `LogContext` for every request, so individual controllers don't have to do it themselves.
 3. Override the `UseSerilogRequestLogging` message template to include `{UserName}` from the JWT claims.
 
@@ -1194,13 +1194,13 @@ dotnet test --filter "FullyQualifiedName~SerilogDemoTests"
 
 ---
 
-## 1. Message templates ó why not string interpolation?
+## 1. Message templates ÔøΩ why not string interpolation?
 
 ```csharp
-// ? Correct ó {AccountId} is a named property
+// ? Correct ÔøΩ {AccountId} is a named property
 logger.LogInformation("Fetching account {AccountId}", id);
 
-// ? Wrong ó collapses structure into a plain string
+// ? Wrong ÔøΩ collapses structure into a plain string
 logger.LogInformation($"Fetching account {id}");
 ```
 
@@ -1208,7 +1208,7 @@ With a structured sink (Seq, Elastic, Application Insights) the named property i
 
 **Java parallel:**
 ```java
-// SLF4J uses {} placeholders ó NOT string format
+// SLF4J uses {} placeholders ÔøΩ NOT string format
 logger.info("Fetching account {}", id);
 // MDC for ambient context
 MDC.put("accountId", String.valueOf(id));
@@ -1220,12 +1220,12 @@ MDC.put("accountId", String.valueOf(id));
 
 | Level | When to use |
 |---|---|
-| `Trace` | Extremely detailed ó byte-level, loop-level (usually disabled) |
-| `Debug` | Developer diagnostics ó entry/exit of methods |
-| `Information` | Normal flow ó request started, record created |
-| `Warning` | Recoverable anomaly ó not found, retry triggered |
-| `Error` | Operation failed ó exception caught, DB write failed |
-| `Critical` | System-wide failure ó app cannot continue, data corruption |
+| `Trace` | Extremely detailed ÔøΩ byte-level, loop-level (usually disabled) |
+| `Debug` | Developer diagnostics ÔøΩ entry/exit of methods |
+| `Information` | Normal flow ÔøΩ request started, record created |
+| `Warning` | Recoverable anomaly ÔøΩ not found, retry triggered |
+| `Error` | Operation failed ÔøΩ exception caught, DB write failed |
+| `Critical` | System-wide failure ÔøΩ app cannot continue, data corruption |
 
 Configure minimum level in `appsettings.json`:
 ```json
@@ -1240,7 +1240,7 @@ Configure minimum level in `appsettings.json`:
 
 ---
 
-## 3. Log scopes ó ambient context
+## 3. Log scopes ÔøΩ ambient context
 
 ```csharp
 using (logger.BeginScope(new Dictionary<string, object>
@@ -1285,16 +1285,16 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~LoggingDemoTests"
-# 5 tests ó all pass
+# 5 tests ÔøΩ all pass
 ```
 
 ---
 
 ## Exercises
 
-1. Change `appsettings.Development.json` to set `"Lesson.Controllers": "Warning"` and run the app ó verify the `Information` messages from `LoggingDemoController` are suppressed.
-2. Add an `EventId` to a log call: `logger.LogInformation(new EventId(1001, "TransferStarted"), "Transfer {Amount}", amount)` ó this lets you filter by event in structured sinks.
-3. Replace `BeginScope(dictionary)` with `BeginScope("Processing transfer {TransferId}", id)` ó note how the format differs from the dictionary approach and when each is preferred.
+1. Change `appsettings.Development.json` to set `"Lesson.Controllers": "Warning"` and run the app ÔøΩ verify the `Information` messages from `LoggingDemoController` are suppressed.
+2. Add an `EventId` to a log call: `logger.LogInformation(new EventId(1001, "TransferStarted"), "Transfer {Amount}", amount)` ÔøΩ this lets you filter by event in structured sinks.
+3. Replace `BeginScope(dictionary)` with `BeginScope("Processing transfer {TransferId}", id)` ÔøΩ note how the format differs from the dictionary approach and when each is preferred.
 
 
 > **Branch:** `lesson/14-caching/c-advanced`
@@ -1315,7 +1315,7 @@ dotnet test --filter "FullyQualifiedName~LoggingDemoTests"
 
 ---
 
-## 1. [ResponseCache] ó tells clients and CDNs to cache
+## 1. [ResponseCache] ÔøΩ tells clients and CDNs to cache
 
 ```csharp
 [HttpGet("accounts/{id}")]
@@ -1331,7 +1331,7 @@ The server still receives the request if the client's cache is cold.
 
 ---
 
-## 2. [OutputCache] ó server stores the full response
+## 2. [OutputCache] ÔøΩ server stores the full response
 
 ```csharp
 [HttpGet("accounts/{id}")]
@@ -1366,7 +1366,7 @@ public IActionResult List([FromQuery] string? type, [FromQuery] int page) { ... 
 ## 4. Cache stampede prevention with the Lock policy
 
 When a popular entry expires, hundreds of simultaneous requests can all hit the DB at once.  
-The `Lock` policy serialises concurrent requests for the **same key** ó only one hits the origin; others wait and then receive the cached response.
+The `Lock` policy serialises concurrent requests for the **same key** ÔøΩ only one hits the origin; others wait and then receive the cached response.
 
 ```csharp
 // Register in Program.cs
@@ -1390,8 +1390,8 @@ public Account getById(int id) { ... }
 
 ```
 UseExceptionHandler()
-UseResponseCaching()   ? [ResponseCache] middleware ó adds headers
-UseOutputCache()       ? [OutputCache] middleware ó serves/stores responses
+UseResponseCaching()   ? [ResponseCache] middleware ÔøΩ adds headers
+UseOutputCache()       ? [OutputCache] middleware ÔøΩ serves/stores responses
 UseAuthentication()
 UseAuthorization()
 MapControllers()
@@ -1420,16 +1420,16 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~OutputCacheTests"
-# 4 tests ó all pass
+# 4 tests ÔøΩ all pass
 ```
 
 ---
 
 ## Exercises
 
-1. Add a `POST /output-cache/server/{id}/invalidate` endpoint that uses `IOutputCacheStore` to evict a specific entry by tag ó you'll need to add `.Tag("account")` to the cache policy and call `store.EvictByTagAsync("account", ct)`.
+1. Add a `POST /output-cache/server/{id}/invalidate` endpoint that uses `IOutputCacheStore` to evict a specific entry by tag ÔøΩ you'll need to add `.Tag("account")` to the cache policy and call `store.EvictByTagAsync("account", ct)`.
 2. Add a test that asserts `GET /output-cache/server/{id}` is **not** served from cache when the `Authorization` header differs (hint: add `VaryByHeader = ["Authorization"]`).
-3. Compare benchmark results (via a simple `for` loop) between an uncached endpoint and a `[OutputCache]` endpoint ó measure the median response time difference.
+3. Compare benchmark results (via a simple `for` loop) between an uncached endpoint and a `[OutputCache]` endpoint ÔøΩ measure the median response time difference.
 
 
 > **Branch:** `lesson/14-caching/b-intermediate`
@@ -1455,27 +1455,27 @@ dotnet test --filter "FullyQualifiedName~OutputCacheTests"
 
 | | `IMemoryCache` (14-A) | `IDistributedCache` (14-B) |
 |---|---|---|
-| Storage | In the process heap | External store (Redis, SQL, Ö) |
+| Storage | In the process heap | External store (Redis, SQL, ÔøΩ) |
 | Works across multiple servers | ? (single node) | ? (shared store) |
-| Stores objects directly | ? | ? ó must serialize to `byte[]` |
+| Stores objects directly | ? | ? ÔøΩ must serialize to `byte[]` |
 | No external dependency | ? | ? (needs Redis or DB) |
 | Suitable for | Single-instance API, session, rate-limiting | Clustered APIs, session sharing, pub/sub |
 
 ---
 
-## 2. Registration ó swapping without changing code
+## 2. Registration ÔøΩ swapping without changing code
 
 ```csharp
-// Development ó no Redis needed
+// Development ÔøΩ no Redis needed
 if (builder.Environment.IsDevelopment())
     builder.Services.AddDistributedMemoryCache();
 
-// Production ó uncomment and set connection string
+// Production ÔøΩ uncomment and set connection string
 // builder.Services.AddStackExchangeRedisCache(o =>
 //     o.Configuration = builder.Configuration.GetConnectionString("Redis"));
 ```
 
-The controller only depends on `IDistributedCache` ó swapping the provider is a **single line change** in `Program.cs`.
+The controller only depends on `IDistributedCache` ÔøΩ swapping the provider is a **single line change** in `Program.cs`.
 
 **Java parallel:**
 ```java
@@ -1544,16 +1544,16 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~DistributedCacheTests"
-# 4 tests ó all pass (using AddDistributedMemoryCache for test isolation)
+# 4 tests ÔøΩ all pass (using AddDistributedMemoryCache for test isolation)
 ```
 
 ---
 
 ## Exercises
 
-1. Wrap the serialization helpers into a generic `ICacheService<T>` with `GetOrSetAsync`, `RemoveAsync` ó this is the real-world pattern to avoid `byte[]` boilerplate in controllers.
+1. Wrap the serialization helpers into a generic `ICacheService<T>` with `GetOrSetAsync`, `RemoveAsync` ÔøΩ this is the real-world pattern to avoid `byte[]` boilerplate in controllers.
 2. Change the expiry to 2 seconds, wait 3 seconds in a test, and assert the cache entry is gone.
-3. Start a Redis Docker container and switch `Program.cs` to `AddStackExchangeRedisCache` ó run the tests against real Redis and observe the `StackExchange.Redis` connection log.
+3. Start a Redis Docker container and switch `Program.cs` to `AddStackExchangeRedisCache` ÔøΩ run the tests against real Redis and observe the `StackExchange.Redis` connection log.
 
 
 > **Branch:** `lesson/14-caching/a-basic`
@@ -1581,7 +1581,7 @@ dotnet test --filter "FullyQualifiedName~DistributedCacheTests"
 ```csharp
 // Program.cs
 builder.Services.AddMemoryCache();
-// IMemoryCache is registered as Singleton ó safe to inject into Scoped controllers
+// IMemoryCache is registered as Singleton ÔøΩ safe to inject into Scoped controllers
 ```
 
 **Java parallel:**
@@ -1607,7 +1607,7 @@ var account = await cache.GetOrCreateAsync(
     });
 ```
 
-The factory lambda only runs on a **cache miss** ó identical to `@Cacheable` in Spring.
+The factory lambda only runs on a **cache miss** ÔøΩ identical to `@Cacheable` in Spring.
 
 **Java parallel:**
 ```java
@@ -1623,10 +1623,10 @@ public Optional<BankAccount> getById(int id) {
 
 | | Absolute | Sliding |
 |---|---|---|
-| Resets on access? | No ó hard deadline | Yes ó deadline resets each time |
+| Resets on access? | No ÔøΩ hard deadline | Yes ÔøΩ deadline resets each time |
 | Use case | Data that must refresh on schedule | Session/user data that should expire only after inactivity |
 | C# | `AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)` | `SlidingExpiration = TimeSpan.FromMinutes(2)` |
-| Both at once? | Yes ó sliding resets, but absolute cap overrides | |
+| Both at once? | Yes ÔøΩ sliding resets, but absolute cap overrides | |
 
 ---
 
@@ -1673,7 +1673,7 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~MemoryCacheTests"
-# 4 tests ó all pass
+# 4 tests ÔøΩ all pass
 ```
 
 ---
@@ -1737,7 +1737,7 @@ return Base64.getUrlEncoder().encodeToString(bytes);
 
 ## 3. Single-use rotation
 
-On refresh, the server removes the old token and issues a brand-new pair. If an attacker steals a refresh token and uses it first, the legitimate client's next refresh will fail ó raising an alert.
+On refresh, the server removes the old token and issues a brand-new pair. If an attacker steals a refresh token and uses it first, the legitimate client's next refresh will fail ÔøΩ raising an alert.
 
 ```csharp
 public bool TryConsume(string token, out string? username, out string? role)
@@ -1789,14 +1789,14 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~RefreshTokenTests"
-# 6 tests ó all pass
+# 6 tests ÔøΩ all pass
 ```
 
 ---
 
 ## Exercises
 
-1. Persist `TokenStore` to SQLite ó add a `RefreshTokens` table with EF Core, replacing the in-memory dictionary.
+1. Persist `TokenStore` to SQLite ÔøΩ add a `RefreshTokens` table with EF Core, replacing the in-memory dictionary.
 2. Add an `AbsoluteExpiry` check: if the original login was more than 30 days ago, force re-login even if the refresh token is still technically valid.
 3. Integrate a sliding-expiry: each successful refresh resets the 7-day window so active users never get logged out.
 
@@ -1902,7 +1902,7 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~RoleBasedAuthTests"
-# 8 tests ó all pass
+# 8 tests ÔøΩ all pass
 ```
 
 ---
@@ -1910,8 +1910,8 @@ dotnet test --filter "FullyQualifiedName~RoleBasedAuthTests"
 ## Exercises
 
 1. Add a `Guest` role to the in-memory user store and test that a Guest gets 403 on `POST /banking/transfer`.
-2. Extract `AccountOwnerHandler` into its own file under `Lesson/Authorization/` ó this is the real-world placement pattern.
-3. Add a `MinimumBalanceRequirement(decimal minimum)` that only allows transfers when the caller's account balance exceeds a threshold ó pass the requirement a balance via the resource object.
+2. Extract `AccountOwnerHandler` into its own file under `Lesson/Authorization/` ÔøΩ this is the real-world placement pattern.
+3. Add a `MinimumBalanceRequirement(decimal minimum)` that only allows transfers when the caller's account balance exceeds a threshold ÔøΩ pass the requirement a balance via the resource object.
 
 
 > **Branch:** `lesson/13-auth-jwt/a-basic`
@@ -1988,7 +1988,7 @@ builder.Services
     });
 builder.Services.AddAuthorization();
 
-// In pipeline ó ORDER MATTERS: Authentication before Authorization
+// In pipeline ÔøΩ ORDER MATTERS: Authentication before Authorization
 app.UseAuthentication();
 app.UseAuthorization();
 ```
@@ -2025,7 +2025,7 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~JwtAuthTests"
-# 10 tests ó all pass
+# 10 tests ÔøΩ all pass
 ```
 
 ---
@@ -2033,8 +2033,8 @@ dotnet test --filter "FullyQualifiedName~JwtAuthTests"
 ## Exercises
 
 1. Add a `GET /auth/admin` endpoint decorated with `[Authorize(Roles = "Manager")]` and write tests that assert a Teller gets 403 and a Manager gets 200.
-2. Add an `ExpirySeconds = 1` test-only JwtOptions override in the factory ó wait 2 seconds, then assert an expired token returns 401.
-3. Decode the JWT without a library: split the token on `.`, Base64Url-decode the middle part, and pretty-print the JSON payload ó observe the `sub`, `role`, `exp`, and `jti` claims.
+2. Add an `ExpirySeconds = 1` test-only JwtOptions override in the factory ÔøΩ wait 2 seconds, then assert an expired token returns 401.
+3. Decode the JWT without a library: split the token on `.`, Base64Url-decode the middle part, and pretty-print the JSON payload ÔøΩ observe the `sub`, `role`, `exp`, and `jti` claims.
 
 
 > **Branch:** `lesson/12-unit-testing/c-advanced`
@@ -2055,9 +2055,9 @@ dotnet test --filter "FullyQualifiedName~JwtAuthTests"
 
 ---
 
-## 1. WebApplicationFactory ó the core concept
+## 1. WebApplicationFactory ÔøΩ the core concept
 
-`WebApplicationFactory<Program>` starts the real ASP.NET Core pipeline in memory ó no network, no ports ó and gives you an `HttpClient` pre-wired to it.
+`WebApplicationFactory<Program>` starts the real ASP.NET Core pipeline in memory ÔøΩ no network, no ports ÔøΩ and gives you an `HttpClient` pre-wired to it.
 
 ```csharp
 public class MyFactory : WebApplicationFactory<Program>
@@ -2093,7 +2093,7 @@ class AccountsIntegrationTest { ... }
 
 ---
 
-## 2. IClassFixture ó sharing the host
+## 2. IClassFixture ÔøΩ sharing the host
 
 ```csharp
 public class AccountsIntegrationTests : IClassFixture<AccountsTestFactory>
@@ -2105,7 +2105,7 @@ public class AccountsIntegrationTests : IClassFixture<AccountsTestFactory>
 }
 ```
 
-xUnit creates **one** `AccountsTestFactory` and injects it into every test constructor ó exactly like Spring's shared application context.
+xUnit creates **one** `AccountsTestFactory` and injects it into every test constructor ÔøΩ exactly like Spring's shared application context.
 
 ---
 
@@ -2153,16 +2153,16 @@ Lesson.Tests/Lesson.Tests.csproj   + coverlet.collector 6.0.4
 
 ```bash
 dotnet test --filter "FullyQualifiedName~AccountsIntegrationTests"
-# 7 tests ó all pass
+# 7 tests ÔøΩ all pass
 ```
 
 ---
 
 ## Exercises
 
-1. Add a test that creates 10 accounts and then calls `GET /accounts?type=Savings` ó assert only savings accounts are returned.
-2. Test optimistic concurrency: create an account, update it once from `_client`, update it a second time from a *second* `HttpClient` using the original `RowVersion` ó expect `409 Conflict`.
-3. Run `dotnet test --collect:"XPlat Code Coverage"` and open the HTML report ó find which controller methods are not yet covered.
+1. Add a test that creates 10 accounts and then calls `GET /accounts?type=Savings` ÔøΩ assert only savings accounts are returned.
+2. Test optimistic concurrency: create an account, update it once from `_client`, update it a second time from a *second* `HttpClient` using the original `RowVersion` ÔøΩ expect `409 Conflict`.
+3. Run `dotnet test --collect:"XPlat Code Coverage"` and open the HTML report ÔøΩ find which controller methods are not yet covered.
 
 
 > **Branch:** `lesson/12-unit-testing/b-intermediate`
@@ -2262,15 +2262,15 @@ Lesson.Tests/Lesson.Tests.csproj        + Moq 4.20.72, FluentAssertions 8.4.0
 
 ```bash
 dotnet test --filter "FullyQualifiedName~MockedAccountRepositoryTests"
-# 10 tests ó all pass
+# 10 tests ÔøΩ all pass
 ```
 
 ---
 
 ## Exercises
 
-1. Mock `IUnitOfWork` and write a test that calls `CommitAsync` twice ó verify with `Times.Exactly(2)`.
-2. Use `mock.SetupSequence(...)` to return different values on successive calls to `GetByIdAsync` ó model a retry scenario.
+1. Mock `IUnitOfWork` and write a test that calls `CommitAsync` twice ÔøΩ verify with `Times.Exactly(2)`.
+2. Use `mock.SetupSequence(...)` to return different values on successive calls to `GetByIdAsync` ÔøΩ model a retry scenario.
 3. Replace the `FluentAssertions` package with `Shouldly` and compare the assertion API.
 
 
@@ -2288,7 +2288,7 @@ dotnet test --filter "FullyQualifiedName~MockedAccountRepositoryTests"
 | Assert equality | `Assert.Equal(expected, actual)` | `assertEquals(expected, actual)` |
 | Assert true/false | `Assert.True(...)` / `Assert.False(...)` | `assertTrue(...)` / `assertFalse(...)` |
 | Assert throws | `Assert.Throws<TEx>(() => ...)` | `assertThrows(Type.class, () -> ...)` |
-| Arrange/Act/Assert | Pattern ó comment or blank-line separated sections | Same pattern in Java |
+| Arrange/Act/Assert | Pattern ÔøΩ comment or blank-line separated sections | Same pattern in Java |
 | Test naming | `Method_Scenario_ExpectedResult` | Same convention |
 
 ---
@@ -2301,14 +2301,14 @@ Every test follows three phases:
 [Fact]
 public void Deposit_PositiveAmount_IncreasesBalance()
 {
-    // Arrange ó set up the objects under test
+    // Arrange ÔøΩ set up the objects under test
     var account = new BankAccount { Balance = 100m };
     var svc     = new BankAccountDomainService();
 
-    // Act ó call the code being tested
+    // Act ÔøΩ call the code being tested
     svc.Deposit(account, 50m);
 
-    // Assert ó verify the outcome
+    // Assert ÔøΩ verify the outcome
     Assert.Equal(150m, account.Balance);
 }
 ```
@@ -2331,7 +2331,7 @@ void deposit_positiveAmount_increasesBalance() {
 
 ## 2. [Theory] with [InlineData]
 
-Run the same test body with multiple input sets ó no copy-paste.
+Run the same test body with multiple input sets ÔøΩ no copy-paste.
 
 ```csharp
 [Theory]
@@ -2362,7 +2362,7 @@ void deposit_nonPositiveAmount_throws(double amount) {
 | | Pure unit test (this lesson) | Integration test (12-C) |
 |---|---|---|
 | Speed | < 1 ms per test | 100 ms+ (DB, HTTP) |
-| Dependencies | None ó created directly | DB, HTTP, DI container |
+| Dependencies | None ÔøΩ created directly | DB, HTTP, DI container |
 | What you test | Business logic, algorithms | Wired-together components |
 | When to use | Domain rules, calculations, validations | Controller ? DB flow, auth, file IO |
 
@@ -2384,7 +2384,7 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~BankAccountDomainTests"
-# 18 tests ó all pass in < 200 ms
+# 18 tests ÔøΩ all pass in < 200 ms
 ```
 
 ---
@@ -2392,7 +2392,7 @@ dotnet test --filter "FullyQualifiedName~BankAccountDomainTests"
 ## Exercises
 
 1. Add a `Transfer(from, to, amount)` method to `BankAccountDomainService` and write tests for: happy path, insufficient funds, negative amount.
-2. Add a `[MemberData]` test that reads test cases from a `public static IEnumerable<object[]>` property ó useful when `[InlineData]` values are too complex (e.g. full objects).
+2. Add a `[MemberData]` test that reads test cases from a `public static IEnumerable<object[]>` property ÔøΩ useful when `[InlineData]` values are too complex (e.g. full objects).
 3. Add a test that verifies `GenerateAccountNumber` never produces duplicates when called with 100 sequential values.
 
 
@@ -2411,7 +2411,7 @@ dotnet test --filter "FullyQualifiedName~BankAccountDomainTests"
 | **Purpose strings** | isolate key rings per feature | Jasypt password + SaltGenerator |
 | `ITimeLimitedDataProtector` | token with built-in expiry | Hand-rolled JWT `exp` claim |
 | Key ring | auto-managed, auto-rotated key store | Jasypt `password` property |
-| Tamper detection | built-in HMAC ó throws on any modification | ó |
+| Tamper detection | built-in HMAC ÔøΩ throws on any modification | ÔøΩ |
 
 ---
 
@@ -2420,11 +2420,11 @@ dotnet test --filter "FullyQualifiedName~BankAccountDomainTests"
 | | Raw AES (Lesson 11-B) | Data Protection API |
 |---|---|---|
 | Key management | You manage key, IV, rotation | Automatic key generation + rotation |
-| Authentication | None (CBC mode) | Built-in (HMAC) ó detects tampering |
+| Authentication | None (CBC mode) | Built-in (HMAC) ÔøΩ detects tampering |
 | Purpose isolation | Manual | `CreateProtector("PurposeName")` |
 | Token expiry | Not built in | `ITimeLimitedDataProtector` |
 | Production storage | You choose | File system ? Azure Blob ? Key Vault |
-| Jasypt similarity | Low | **High** ó same one-liner API |
+| Jasypt similarity | Low | **High** ÔøΩ same one-liner API |
 
 Use Data Protection for **application data** (tokens, cookies, config values).
 Use raw AES when you need **interoperability** with other systems (e.g. encrypt for a Java service).
@@ -2461,7 +2461,7 @@ var sessionProtector       = dpProvider.CreateProtector("Session");
 
 var token = passwordResetProtector.Protect("user@bank.com");
 
-// This will throw CryptographicException ó wrong purpose
+// This will throw CryptographicException ÔøΩ wrong purpose
 sessionProtector.Unprotect(token);
 ```
 
@@ -2476,10 +2476,10 @@ ITimeLimitedDataProtector tl = dpProvider
     .CreateProtector("PasswordReset")
     .ToTimeLimitedDataProtector();
 
-// Create ó valid for 15 minutes
+// Create ÔøΩ valid for 15 minutes
 string token = tl.Protect("user@bank.com", DateTimeOffset.UtcNow.AddMinutes(15));
 
-// Consume ó throws CryptographicException if expired
+// Consume ÔøΩ throws CryptographicException if expired
 string payload = tl.Unprotect(token, out DateTimeOffset expiry);
 ```
 
@@ -2526,17 +2526,17 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~DataProtectionTests"
-# 8 tests ó all pass
+# 8 tests ÔøΩ all pass
 ```
 
 ---
 
 ## Exercises
 
-1. Add `PersistKeysToFileSystem(new DirectoryInfo("/tmp/dp-keys"))` to `AddDataProtection()` ó restart the app twice and verify that tokens survive restarts.
-2. Call `Protect` with purpose `"A"` in one test, then attempt `Unprotect` with purpose `"B"` ó confirm the `400` response.
+1. Add `PersistKeysToFileSystem(new DirectoryInfo("/tmp/dp-keys"))` to `AddDataProtection()` ÔøΩ restart the app twice and verify that tokens survive restarts.
+2. Call `Protect` with purpose `"A"` in one test, then attempt `Unprotect` with purpose `"B"` ÔøΩ confirm the `400` response.
 3. Simulate Jasypt: read an `EncryptedPassword` string from `appsettings.json` and decrypt it at startup using `IDataProtector`, injecting the plaintext password into an `IOptions<T>` object.
-4. Extend the `ConsumeToken` endpoint to return the remaining TTL as seconds ó compute it from `expiry - DateTimeOffset.UtcNow`.
+4. Extend the `ConsumeToken` endpoint to return the remaining TTL as seconds ÔøΩ compute it from `expiry - DateTimeOffset.UtcNow`.
 
 
 > **Branch:** `lesson/11-encryption/b-intermediate`
@@ -2552,15 +2552,15 @@ dotnet test --filter "FullyQualifiedName~DataProtectionTests"
 | Key generation | `aes.GenerateKey()` | `KeyGenerator.generateKey()` |
 | IV generation | `aes.GenerateIV()` | `cipher.init(ENCRYPT_MODE, key)` auto-IV |
 | CBC mode | `aes.Mode = CipherMode.CBC` | `"AES/CBC/PKCS5Padding"` |
-| Encrypt | `aes.CreateEncryptor().TransformFinalBlock(Ö)` | `cipher.doFinal(bytes)` |
-| Decrypt | `aes.CreateDecryptor().TransformFinalBlock(Ö)` | `cipher.doFinal(cipherBytes)` |
+| Encrypt | `aes.CreateEncryptor().TransformFinalBlock(ÔøΩ)` | `cipher.doFinal(bytes)` |
+| Decrypt | `aes.CreateDecryptor().TransformFinalBlock(ÔøΩ)` | `cipher.doFinal(cipherBytes)` |
 | Key sizes | 128 / 192 / 256 bits | Same |
 
 ---
 
 ## 1. AES fundamentals
 
-AES is a **symmetric** cipher ó the same key is used to encrypt and decrypt.
+AES is a **symmetric** cipher ÔøΩ the same key is used to encrypt and decrypt.
 
 | Term | Description |
 |---|---|
@@ -2611,7 +2611,7 @@ var plainBytes = decryptor.TransformFinalBlock(cipherBytes, 0, cipherBytes.Lengt
 
 ## 4. Why the IV matters
 
-Encrypting the same plaintext twice **with the same IV** produces the same ciphertext ó leaking that the values are identical (ECB vulnerability).
+Encrypting the same plaintext twice **with the same IV** produces the same ciphertext ÔøΩ leaking that the values are identical (ECB vulnerability).
 Generating a fresh random IV every time prevents this, at zero cost.
 
 ---
@@ -2642,17 +2642,17 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~AesEncryptionTests"
-# 9 tests ó all pass
+# 9 tests ÔøΩ all pass
 ```
 
 ---
 
 ## Exercises
 
-1. Switch to **AES-GCM** (`AesGcm`) ó it adds an authentication tag that detects tampering. Verify that modifying a byte of the ciphertext causes `AuthenticationTagMismatchException`.
+1. Switch to **AES-GCM** (`AesGcm`) ÔøΩ it adds an authentication tag that detects tampering. Verify that modifying a byte of the ciphertext causes `AuthenticationTagMismatchException`.
 2. Implement a helper that **prepends the IV** to the ciphertext bytes so only one Base64 string needs to be stored, and split it on decrypt.
-3. Store the AES key in `IOptions<T>` and read it from User Secrets ó simulate how production apps manage symmetric keys.
-4. Benchmark AES-128 vs AES-256 for 1 MB of data using `Stopwatch` ó the difference is small.
+3. Store the AES key in `IOptions<T>` and read it from User Secrets ÔøΩ simulate how production apps manage symmetric keys.
+4. Benchmark AES-128 vs AES-256 for 1 MB of data using `Stopwatch` ÔøΩ the difference is small.
 
 
 > **Branch:** `lesson/11-encryption/a-basic`
@@ -2675,8 +2675,8 @@ dotnet test --filter "FullyQualifiedName~AesEncryptionTests"
 
 ## 1. Base64
 
-Base64 encodes arbitrary bytes as printable ASCII text ó useful for embedding binary data in JSON/HTTP.
-It is **not** encryption ó it is trivially reversible.
+Base64 encodes arbitrary bytes as printable ASCII text ÔøΩ useful for embedding binary data in JSON/HTTP.
+It is **not** encryption ÔøΩ it is trivially reversible.
 
 ```csharp
 var bytes   = Encoding.UTF8.GetBytes("Hello, Bank!");
@@ -2687,10 +2687,10 @@ var decoded = Encoding.UTF8.GetString(
 
 ---
 
-## 2. SHA-256 ó one-way hash
+## 2. SHA-256 ÔøΩ one-way hash
 
 Good for: document fingerprints, integrity checks, checksums.
-**Bad for passwords** ó it's too fast; GPUs can compute billions/second.
+**Bad for passwords** ÔøΩ it's too fast; GPUs can compute billions/second.
 
 ```csharp
 var bytes = Encoding.UTF8.GetBytes(input);
@@ -2698,11 +2698,11 @@ var hash  = SHA256.HashData(bytes);          // static, no allocation
 var hex   = Convert.ToHexString(hash).ToLowerInvariant();
 ```
 
-SHA-256 is deterministic ó same input always produces same output.
+SHA-256 is deterministic ÔøΩ same input always produces same output.
 
 ---
 
-## 3. HMAC-SHA256 ó keyed hash
+## 3. HMAC-SHA256 ÔøΩ keyed hash
 
 HMAC adds a **secret key** to the hash. Useful for API request signing and JWT secrets.
 Only parties with the key can verify the signature.
@@ -2719,7 +2719,7 @@ CryptographicOperations.FixedTimeEquals(expected, actual)
 
 ---
 
-## 4. BCrypt ó password hashing
+## 4. BCrypt ÔøΩ password hashing
 
 BCrypt is intentionally slow (configurable work factor) to make brute-force expensive.
 It generates and stores a random salt internally.
@@ -2728,7 +2728,7 @@ It generates and stores a random salt internally.
 // Hash (work factor 11 = ~100ms on a modern CPU)
 var hash = BCrypt.Net.BCrypt.HashPassword(password, workFactor: 11);
 
-// Verify ó automatically extracts salt from the hash string
+// Verify ÔøΩ automatically extracts salt from the hash string
 var valid = BCrypt.Net.BCrypt.Verify(password, hash);
 ```
 
@@ -2766,15 +2766,15 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~CryptoBasicTests"
-# 11 tests ó all pass
+# 11 tests ÔøΩ all pass
 ```
 
 ---
 
 ## Exercises
 
-1. Add a `GET /crypto/sha256/file?path=Ö` endpoint that hashes a file's bytes ó useful for verifying download integrity.
-2. Benchmark BCrypt at work factors 10, 12, and 14 ó observe the exponential time increase.
+1. Add a `GET /crypto/sha256/file?path=ÔøΩ` endpoint that hashes a file's bytes ÔøΩ useful for verifying download integrity.
+2. Benchmark BCrypt at work factors 10, 12, and 14 ÔøΩ observe the exponential time increase.
 3. Add an endpoint that computes SHA-256 of a streaming request body using `SHA256.Create()` and `CryptoStream`.
 4. Explain why `string.Equals(a, b)` is unsafe for comparing HMACs.
 
@@ -2791,14 +2791,14 @@ dotnet test --filter "FullyQualifiedName~CryptoBasicTests"
 | `IFormFile` | ASP.NET Core multipart upload abstraction | `@RequestParam MultipartFile file` |
 | `[Consumes("multipart/form-data")]` | document accepted content types | `@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)` |
 | `CsvHelper` | third-party CSV reader/writer | OpenCSV / Apache Commons CSV |
-| `CsvReader.GetRecordsAsync<T>` | async streaming CSV parse | ó |
+| `CsvReader.GetRecordsAsync<T>` | async streaming CSV parse | ÔøΩ |
 | `[Name]` attribute | map CSV column by name | `@CsvBindByName` (OpenCSV) |
-| `JsonSerializer.SerializeAsync` | async JSON ? stream | `ObjectMapper.writeValue(OutputStream, Ö)` |
-| `JsonSerializer.DeserializeAsync` | async stream ? JSON | `ObjectMapper.readValue(InputStream, Ö)` |
+| `JsonSerializer.SerializeAsync` | async JSON ? stream | `ObjectMapper.writeValue(OutputStream, ÔøΩ)` |
+| `JsonSerializer.DeserializeAsync` | async stream ? JSON | `ObjectMapper.readValue(InputStream, ÔøΩ)` |
 
 ---
 
-## 1. IFormFile ó file upload
+## 1. IFormFile ÔøΩ file upload
 
 ```csharp
 [HttpPost("import")]
@@ -2806,7 +2806,7 @@ dotnet test --filter "FullyQualifiedName~CryptoBasicTests"
 public async Task<IActionResult> ImportCsv(IFormFile file, CancellationToken ct)
 {
     using var reader = new StreamReader(file.OpenReadStream());
-    // Ö
+    // ÔøΩ
 }
 ```
 
@@ -2817,13 +2817,13 @@ Key properties: `FileName`, `Length`, `ContentType`, `OpenReadStream()`.
 ```java
 @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 public ResponseEntity<?> upload(@RequestParam("file") MultipartFile file) {
-    try (var is = file.getInputStream()) { Ö }
+    try (var is = file.getInputStream()) { ÔøΩ }
 }
 ```
 
 ---
 
-## 2. CsvHelper ó parsing CSV
+## 2. CsvHelper ÔøΩ parsing CSV
 
 ```csharp
 // Map columns by name using [Name] attribute on the record class
@@ -2831,7 +2831,7 @@ public record TransactionCsvRecord
 {
     [Name("account_id")] public string AccountId { get; init; } = "";
     [Name("amount")]     public decimal Amount   { get; init; }
-    // Ö
+    // ÔøΩ
 }
 
 var config = new CsvConfiguration(CultureInfo.InvariantCulture) { HasHeaderRecord = true };
@@ -2841,23 +2841,23 @@ await foreach (var record in csv.GetRecordsAsync<TransactionCsvRecord>(ct))
     records.Add(record);
 ```
 
-`GetRecordsAsync` returns an `IAsyncEnumerable<T>` ó you can process each row without loading the full file into memory first.
+`GetRecordsAsync` returns an `IAsyncEnumerable<T>` ÔøΩ you can process each row without loading the full file into memory first.
 
 ---
 
-## 3. System.Text.Json ó async file IO
+## 3. System.Text.Json ÔøΩ async file IO
 
 ```csharp
 // Write
-await using var fs = new FileStream(path, FileMode.Create, Ö, useAsync: true);
+await using var fs = new FileStream(path, FileMode.Create, ÔøΩ, useAsync: true);
 await JsonSerializer.SerializeAsync(fs, payload, cancellationToken: ct);
 
 // Read
-await using var fs = new FileStream(path, FileMode.Open, Ö, useAsync: true);
+await using var fs = new FileStream(path, FileMode.Open, ÔøΩ, useAsync: true);
 var doc = await JsonSerializer.DeserializeAsync<JsonElement>(fs, cancellationToken: ct);
 ```
 
-Both operations write/read directly from/to a `Stream` ó no intermediate string allocation.
+Both operations write/read directly from/to a `Stream` ÔøΩ no intermediate string allocation.
 
 ---
 
@@ -2868,7 +2868,7 @@ Both operations write/read directly from/to a `Stream` ó no intermediate string 
 | `POST` | `/files/csv/import` | Upload a CSV file (`multipart/form-data`), returns parsed records |
 | `GET` | `/files/csv/export` | Download a CSV file (`text/csv`) |
 | `POST` | `/files/json/save` | Serialize a JSON body to a temp file |
-| `GET` | `/files/json/load?path=Ö` | Deserialize a JSON file |
+| `GET` | `/files/json/load?path=ÔøΩ` | Deserialize a JSON file |
 
 ---
 
@@ -2890,7 +2890,7 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~CsvFileTests"
-# 8 tests ó all pass
+# 8 tests ÔøΩ all pass
 ```
 
 ---
@@ -2898,7 +2898,7 @@ dotnet test --filter "FullyQualifiedName~CsvFileTests"
 ## Exercises
 
 1. Add a `[Required]` column validation: if `amount` is missing return `400` instead of silently defaulting to `0`.
-2. Write a CSV export endpoint that streams directly to the response body using `Response.Body` ó no `MemoryStream` intermediate.
+2. Write a CSV export endpoint that streams directly to the response body using `Response.Body` ÔøΩ no `MemoryStream` intermediate.
 3. Use `JsonSerializerOptions` with `PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower` and observe how the saved JSON changes.
 4. Add a `POST /files/csv/export` that accepts a list of records as JSON body and returns a CSV download.
 
@@ -2916,12 +2916,12 @@ dotnet test --filter "FullyQualifiedName~CsvFileTests"
 | `StreamWriter` | `new StreamWriter(path)`, `await using` | `PrintWriter`/`BufferedWriter` via `Files.newBufferedWriter` |
 | `StreamReader` | `new StreamReader(path)`, `ReadLineAsync` | `BufferedReader` via `Files.newBufferedReader` |
 | `FileStream` | low-level byte stream; explicit mode, access, share, buffer flags | `FileOutputStream` + `BufferedOutputStream` |
-| `using` declaration | C# 8+ ó disposes at end of enclosing scope; no extra braces needed | `try`-with-resources |
-| `await using` | `IAsyncDisposable` ó flushes buffers asynchronously before dispose | No direct equivalent |
+| `using` declaration | C# 8+ ÔøΩ disposes at end of enclosing scope; no extra braces needed | `try`-with-resources |
+| `await using` | `IAsyncDisposable` ÔøΩ flushes buffers asynchronously before dispose | No direct equivalent |
 
 ---
 
-## 1. StreamWriter ó writing text
+## 1. StreamWriter ÔøΩ writing text
 
 ```csharp
 // 'await using' flushes asynchronously; works because StreamWriter : IAsyncDisposable
@@ -2929,7 +2929,7 @@ await using var writer = new StreamWriter(path, append: false);
 await writer.WriteLineAsync(line.AsMemory(), cancellationToken);
 ```
 
-**`append: false`** ó truncates and creates; `append: true` ó opens or creates and seeks to end.
+**`append: false`** ÔøΩ truncates and creates; `append: true` ÔøΩ opens or creates and seeks to end.
 
 **Java parallel:**
 ```java
@@ -2941,7 +2941,7 @@ try (var writer = Files.newBufferedWriter(Path.of(path))) {
 
 ---
 
-## 2. StreamReader ó reading text
+## 2. StreamReader ÔøΩ reading text
 
 ```csharp
 // StreamReader does not implement IAsyncDisposable ? plain 'using'
@@ -2950,11 +2950,11 @@ while (await reader.ReadLineAsync(ct) is { } line)
     lines.Add(line);
 ```
 
-`ReadLineAsync` returns `null` at EOF ó the `is { }` pattern filters nulls out cleanly.
+`ReadLineAsync` returns `null` at EOF ÔøΩ the `is { }` pattern filters nulls out cleanly.
 
 ---
 
-## 3. FileStream ó binary data
+## 3. FileStream ÔøΩ binary data
 
 ```csharp
 await using var fs = new FileStream(
@@ -2976,7 +2976,7 @@ await fs.WriteAsync(bytes, cancellationToken);
 
 ```csharp
 File.Exists(path)              // bool
-File.Delete(path)              // void ó throws if missing
+File.Delete(path)              // void ÔøΩ throws if missing
 File.AppendText(path)          // StreamWriter opened for append
 new FileInfo(path).Length      // file size in bytes
 new FileInfo(path).LastWriteTimeUtc
@@ -2989,10 +2989,10 @@ new FileInfo(path).LastWriteTimeUtc
 | Method | Route | Notes |
 |--------|-------|-------|
 | `POST` | `/files/export` | Write transaction list to a temp text file |
-| `GET` | `/files/read?path=Ö` | Read all lines from a file |
+| `GET` | `/files/read?path=ÔøΩ` | Read all lines from a file |
 | `POST` | `/files/append` | Append a single line to an existing file |
-| `GET` | `/files/info?path=Ö` | File metadata (size, dates) |
-| `DELETE` | `/files/delete?path=Ö` | Remove a file |
+| `GET` | `/files/info?path=ÔøΩ` | File metadata (size, dates) |
+| `DELETE` | `/files/delete?path=ÔøΩ` | Remove a file |
 | `POST` | `/files/binary` | Write Base64-encoded bytes via `FileStream` |
 
 ---
@@ -3015,16 +3015,16 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~FileHandlingBasicTests"
-# 8 tests ó all pass
+# 8 tests ÔøΩ all pass
 ```
 
 ---
 
 ## Exercises
 
-1. Add a `GET /files/list?directory=Ö` endpoint that returns all `.txt` files in a directory using `Directory.EnumerateFiles`.
-2. Change `WriteBinary` to use `await File.WriteAllBytesAsync(path, bytes, ct)` ó compare the two approaches.
-3. Read a large file using `ReadAllLinesAsync` vs the `StreamReader` loop ó benchmark with `Stopwatch` to understand the tradeoff.
+1. Add a `GET /files/list?directory=ÔøΩ` endpoint that returns all `.txt` files in a directory using `Directory.EnumerateFiles`.
+2. Change `WriteBinary` to use `await File.WriteAllBytesAsync(path, bytes, ct)` ÔøΩ compare the two approaches.
+3. Read a large file using `ReadAllLinesAsync` vs the `StreamReader` loop ÔøΩ benchmark with `Stopwatch` to understand the tradeoff.
 4. Add compression: wrap `FileStream` in a `GZipStream` (`System.IO.Compression`) and write compressed text.
 
 
@@ -3042,9 +3042,9 @@ dotnet test --filter "FullyQualifiedName~FileHandlingBasicTests"
 | `ITrigger` / cron trigger | when a job fires | `CronTrigger` |
 | `IScheduler` | engine that manages triggers + executes jobs | `org.quartz.Scheduler` |
 | `[DisallowConcurrentExecution]` | prevents overlapping executions | `@DisallowConcurrentExecution` |
-| DI-integrated jobs | jobs resolved from `IServiceProvider` per execution ó can receive scoped services | Spring Quartz `AutowireCapableBeanJobFactory` |
+| DI-integrated jobs | jobs resolved from `IServiceProvider` per execution ÔøΩ can receive scoped services | Spring Quartz `AutowireCapableBeanJobFactory` |
 | `ISchedulerFactory.GetScheduler()` | obtain the running scheduler | `SchedulerFactory.getScheduler()` |
-| Manual trigger | `scheduler.TriggerJob(key)` ó fire on demand | `scheduler.triggerJob(key)` |
+| Manual trigger | `scheduler.TriggerJob(key)` ÔøΩ fire on demand | `scheduler.triggerJob(key)` |
 
 ---
 
@@ -3060,14 +3060,14 @@ public class StatementGenerationJob(
 
     public async Task Execute(IJobExecutionContext context)
     {
-        // context.FireTimeUtc ó when the trigger fired
-        // context.CancellationToken ó cancelled on graceful shutdown
+        // context.FireTimeUtc ÔøΩ when the trigger fired
+        // context.CancellationToken ÔøΩ cancelled on graceful shutdown
         await DoWorkAsync(context.CancellationToken);
     }
 }
 ```
 
-`[DisallowConcurrentExecution]` tells Quartz not to start a new execution until the previous one completes ó equivalent to `@DisallowConcurrentExecution` in Java Quartz.
+`[DisallowConcurrentExecution]` tells Quartz not to start a new execution until the previous one completes ÔøΩ equivalent to `@DisallowConcurrentExecution` in Java Quartz.
 
 ---
 
@@ -3103,7 +3103,7 @@ builder.Services.AddQuartzHostedService(opts =>
 | `0 * * * * ?` | Every minute at second 0 |
 | `0 0 2 * * ?` | Every day at 02:00 |
 | `0 0/15 * * * ?` | Every 15 minutes |
-| `0 0 9-17 ? * MON-FRI` | Every hour 9 AMñ5 PM, weekdays |
+| `0 0 9-17 ? * MON-FRI` | Every hour 9 AMÔøΩ5 PM, weekdays |
 
 Quartz.NET cron has **6 fields** (seconds included), unlike the 5-field Unix cron.
 
@@ -3161,12 +3161,12 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~QuartzJobTests"
-# 8 tests ó all pass
+# 8 tests ÔøΩ all pass
 ```
 
 > **Testing note:** Quartz uses a static logger provider that captures `LoggerFactory`
 > at startup. Tests use a `QuartzTestFactory : WebApplicationFactory<Program>` subclass
-> with `ConfigureWebHost` override ó this ensures only one host is created per test run,
+> with `ConfigureWebHost` override ÔøΩ this ensures only one host is created per test run,
 > avoiding the `ObjectDisposedException` that occurs with per-test `WithWebHostBuilder` calls.
 
 ---
@@ -3175,7 +3175,7 @@ dotnet test --filter "FullyQualifiedName~QuartzJobTests"
 
 1. Add a `JobDataMap` to the trigger with a `reportType` key and read it from `IJobExecutionContext.MergedJobDataMap` inside the job.
 2. Change the cron to `"0/5 * * * * ?"` (every 5 seconds), run the app, and observe multiple executions in the history endpoint.
-3. Remove `[DisallowConcurrentExecution]` and trigger the job twice rapidly ó observe both runs appearing in "Running" state simultaneously.
+3. Remove `[DisallowConcurrentExecution]` and trigger the job twice rapidly ÔøΩ observe both runs appearing in "Running" state simultaneously.
 4. Add a second `IJob` (`AuditReportJob`) with its own trigger and verify both jobs fire independently.
 
 
@@ -3189,14 +3189,14 @@ dotnet test --filter "FullyQualifiedName~QuartzJobTests"
 | Topic | C# .NET | Java parallel |
 |---|---|---|
 | `IHostedService` | long-running service managed by the generic host | `ApplicationRunner` / `CommandLineRunner` |
-| `BackgroundService` | abstract base ó override `ExecuteAsync(CancellationToken)` | `ThreadPoolTaskExecutor` loop |
-| `PeriodicTimer` | modern, alloc-free, non-blocking periodic tick | `@Scheduled(fixedDelay = Ö)` |
+| `BackgroundService` | abstract base ÔøΩ override `ExecuteAsync(CancellationToken)` | `ThreadPoolTaskExecutor` loop |
+| `PeriodicTimer` | modern, alloc-free, non-blocking periodic tick | `@Scheduled(fixedDelay = ÔøΩ)` |
 | `CancellationToken` | graceful shutdown signal from the host | `Thread.interrupt()` |
 | Singleton + IHostedService | register same instance as both singleton and hosted service | Spring `@Component` with `@Scheduled` method |
 
 ---
 
-## 1. PeriodicTimer ó the modern scheduling primitive
+## 1. PeriodicTimer ÔøΩ the modern scheduling primitive
 
 ```csharp
 protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -3212,14 +3212,14 @@ protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 ```
 
 Key properties of `PeriodicTimer`:
-- `WaitForNextTickAsync` suspends **without blocking a thread** ó much more efficient than `Thread.Sleep` or `Task.Delay` loops.
+- `WaitForNextTickAsync` suspends **without blocking a thread** ÔøΩ much more efficient than `Thread.Sleep` or `Task.Delay` loops.
 - **Tick skipping**: if `DoWorkAsync` takes longer than the period, the *next* tick fires immediately once. Subsequent ticks resume on schedule. This prevents work piling up.
 - Returns `false` when `stoppingToken` is cancelled ? clean loop exit.
 
 **Java parallel:**
 ```java
 @Scheduled(fixedDelay = 30_000)
-public void doWork() { Ö }
+public void doWork() { ÔøΩ }
 ```
 The key difference: Spring creates a new thread per invocation; `PeriodicTimer` reuses the same `async` continuation on the thread pool.
 
@@ -3251,13 +3251,13 @@ public sealed class JobHistoryStore
     private readonly List<JobExecution> _history = [];
     public IReadOnlyList<JobExecution> History => _history.AsReadOnly();
 
-    public void Add(JobExecution run) { Ö }
-    public void Update(Guid runId, JobExecution updated) { Ö }
-    public void Clear() { Ö }
+    public void Add(JobExecution run) { ÔøΩ }
+    public void Update(Guid runId, JobExecution updated) { ÔøΩ }
+    public void Clear() { ÔøΩ }
 }
 ```
 
-Singleton in-memory store ó shared between the background service (writer) and the controller (reader).
+Singleton in-memory store ÔøΩ shared between the background service (writer) and the controller (reader).
 
 ---
 
@@ -3275,7 +3275,7 @@ Singleton in-memory store ó shared between the background service (writer) and t
 ```
 Lesson/
   ScheduledTasks/
-    JobExecution.cs               NEW  Record ó execution snapshot
+    JobExecution.cs               NEW  Record ÔøΩ execution snapshot
     JobHistoryStore.cs            NEW  Singleton in-memory execution log
   HostedServices/
     InterestCalculationService.cs NEW  BackgroundService + PeriodicTimer
@@ -3292,7 +3292,7 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~ScheduledTaskBasicTests"
-# 7 tests ó all pass
+# 7 tests ÔøΩ all pass
 ```
 
 | Test | What it verifies |
@@ -3314,9 +3314,9 @@ dotnet test --filter "FullyQualifiedName~ScheduledTaskBasicTests"
 ## Exercises
 
 1. Add a `LastRun` property to `JobHistoryStore` and expose it on a `GET /scheduled-tasks/last-run` endpoint.
-2. Change from `UnboundedChannel` to a bounded channel with capacity 1 ó observe that the timer skips ticks while the job is running.
+2. Change from `UnboundedChannel` to a bounded channel with capacity 1 ÔøΩ observe that the timer skips ticks while the job is running.
 3. Inject `IServiceScopeFactory` into `InterestCalculationService` and open a scoped `BankingDbContext` inside the tick loop to read real account data.
-4. Add a `[Fact]` that checks a tick still fires after `StopAsync` is called with a 5-second timeout ó verifying graceful shutdown.
+4. Add a `[Fact]` that checks a tick still fires after `StopAsync` is called with a 5-second timeout ÔøΩ verifying graceful shutdown.
 
 
 > **Branch:** `lesson/08-events/c-advanced`
@@ -3329,11 +3329,11 @@ dotnet test --filter "FullyQualifiedName~ScheduledTaskBasicTests"
 | Topic | C# .NET | Java parallel |
 |---|---|---|
 | `IHostedService` | long-running background service managed by the host | `@Component` + `ApplicationRunner` / `Runnable` in a thread pool |
-| `BackgroundService` | abstract base class ó override `ExecuteAsync(CancellationToken)` | `ThreadPoolTaskExecutor` task that loops until interrupted |
+| `BackgroundService` | abstract base class ÔøΩ override `ExecuteAsync(CancellationToken)` | `ThreadPoolTaskExecutor` task that loops until interrupted |
 | `CancellationToken` | signals graceful shutdown | `Thread.interrupt()` / `InterruptedException` |
 | `Channel<T>` | thread-safe, lock-free async queue | `LinkedBlockingQueue<T>` / `ArrayBlockingQueue<T>` |
-| `ChannelWriter<T>` | producer side ó `WriteAsync`, `TryWrite` | `queue.put()` |
-| `ChannelReader<T>` | consumer side ó `ReadAllAsync`, `ReadAsync` | `queue.take()` |
+| `ChannelWriter<T>` | producer side ÔøΩ `WriteAsync`, `TryWrite` | `queue.put()` |
+| `ChannelReader<T>` | consumer side ÔøΩ `ReadAllAsync`, `ReadAsync` | `queue.take()` |
 | Bounded vs Unbounded | `Channel.CreateBounded` / `Channel.CreateUnbounded` | `ArrayBlockingQueue(N)` / `LinkedBlockingQueue()` |
 | Outbox pattern intro | publish message ? queue ? background consumer | Transactional outbox with Kafka/RabbitMQ |
 
@@ -3380,7 +3380,7 @@ The key difference: `ReadAllAsync` releases the thread while waiting; `BlockingQ
 ## 2. Channel\<T\>
 
 ```csharp
-// Unbounded ó producer never waits; ideal when producer is bursty and consumer is reliable
+// Unbounded ÔøΩ producer never waits; ideal when producer is bursty and consumer is reliable
 var channel = Channel.CreateUnbounded<OutboxMessage>(
     new UnboundedChannelOptions { SingleReader = true });
 
@@ -3392,14 +3392,14 @@ await foreach (var msg in channel.Reader.ReadAllAsync(ct))
     Process(msg);
 ```
 
-`SingleReader = true` is a performance hint ó allows internal optimisations when only one consumer exists.
+`SingleReader = true` is a performance hint ÔøΩ allows internal optimisations when only one consumer exists.
 
 ---
 
 ## 3. Registration in Program.cs
 
 ```csharp
-// Singleton ó the channel is shared between producer (controller) and consumer (hosted service)
+// Singleton ÔøΩ the channel is shared between producer (controller) and consumer (hosted service)
 builder.Services.AddSingleton<OutboxChannel>();
 
 // Register the concrete type so OutboxController can inject it directly to read Processed log
@@ -3439,10 +3439,10 @@ Here we replace the DB table with an in-memory `Channel<T>` to focus on the
 ```
 Lesson/
   Messaging/
-    OutboxMessage.cs          NEW  Record ó channel message payload
+    OutboxMessage.cs          NEW  Record ÔøΩ channel message payload
     OutboxChannel.cs          NEW  Wraps Channel<OutboxMessage>; exposes Writer/Reader
   HostedServices/
-    OutboxConsumerService.cs  NEW  BackgroundService ó drains channel, simulates processing
+    OutboxConsumerService.cs  NEW  BackgroundService ÔøΩ drains channel, simulates processing
   Controllers/
     OutboxController.cs       NEW  /outbox producer endpoints
   Program.cs                        + singleton channel, consumer, hosted service
@@ -3456,7 +3456,7 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~ChannelHostedServiceTests"
-# 6 tests ó all pass
+# 6 tests ÔøΩ all pass
 ```
 
 | Test | What it verifies |
@@ -3477,8 +3477,8 @@ dotnet test --filter "FullyQualifiedName~ChannelHostedServiceTests"
 ## Exercises
 
 1. Switch from `UnboundedChannel` to `BoundedChannel` with capacity 3 and observe what happens when you publish 4 messages rapidly with `BoundedChannelFullMode.Wait`.
-2. Add a `DeadLetterChannel` ó if processing throws, write the failed message to a second `Channel<T>` and expose a `/outbox/dead-letter` endpoint.
-3. Add a second `BackgroundService` that reads from the same channel ó observe that with `SingleReader = true` you get a runtime exception, then switch to `SingleReader = false`.
+2. Add a `DeadLetterChannel` ÔøΩ if processing throws, write the failed message to a second `Channel<T>` and expose a `/outbox/dead-letter` endpoint.
+3. Add a second `BackgroundService` that reads from the same channel ÔøΩ observe that with `SingleReader = true` you get a runtime exception, then switch to `SingleReader = false`.
 4. Introduce a simulated transactional outbox: save the `OutboxMessage` to the SQLite `BankingDbContext` in the controller, and have the background service query the DB instead of reading from the channel.
 
 
@@ -3494,12 +3494,12 @@ dotnet test --filter "FullyQualifiedName~ChannelHostedServiceTests"
 | `INotification` | marker interface for a domain event | `ApplicationEvent` subclass |
 | `INotificationHandler<T>` | receives a notification; multiple per notification | `@EventListener` method |
 | `IMediator.Publish()` | dispatch to all handlers | `ApplicationEventPublisher.publishEvent()` |
-| Decoupling | publisher has zero dependency on handlers | `@EventListener` ó no direct coupling either |
-| Multiple handlers | fan-out ó all handlers are called | Multiple `@EventListener` methods for the same event type |
+| Decoupling | publisher has zero dependency on handlers | `@EventListener` ÔøΩ no direct coupling either |
+| Multiple handlers | fan-out ÔøΩ all handlers are called | Multiple `@EventListener` methods for the same event type |
 
 ---
 
-## 1. INotification ó the event payload
+## 1. INotification ÔøΩ the event payload
 
 ```csharp
 public record AccountCreatedNotification(
@@ -3508,7 +3508,7 @@ public record AccountCreatedNotification(
     decimal InitialBalance) : INotification;
 ```
 
-`INotification` is a **marker interface** ó no methods required.
+`INotification` is a **marker interface** ÔøΩ no methods required.
 MediatR uses the type to route the notification to the correct handlers.
 
 **Java parallel:**
@@ -3520,7 +3520,7 @@ public class AccountCreatedEvent extends ApplicationEvent {
 
 ---
 
-## 2. INotificationHandler ó subscribers
+## 2. INotificationHandler ÔøΩ subscribers
 
 ```csharp
 public class SendWelcomeEmailHandler : INotificationHandler<AccountCreatedNotification>
@@ -3574,7 +3574,7 @@ public class AccountEventsController(IMediator mediator) : ControllerBase
 ```
 
 The controller knows about `IMediator` but has **no knowledge** of `SendWelcomeEmailHandler`
-or `AccountCreatedAuditHandler` ó fully decoupled.
+or `AccountCreatedAuditHandler` ÔøΩ fully decoupled.
 
 ---
 
@@ -3582,7 +3582,7 @@ or `AccountCreatedAuditHandler` ó fully decoupled.
 
 | | C# `event` (Lesson 08-A) | MediatR `INotification` (Lesson 08-B) |
 |---|---|---|
-| Coupling | subscriber must reference the publisher to `+=` | zero coupling ó handlers registered via DI |
+| Coupling | subscriber must reference the publisher to `+=` | zero coupling ÔøΩ handlers registered via DI |
 | Discovery | compile-time | DI scan via `AddMediatR` |
 | Async | requires `async void` (discouraged) | `async Task` natively supported |
 | Testing | must wire event manually | inject mock `IMediator` |
@@ -3619,14 +3619,14 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~MediatRNotificationTests"
-# 7 tests ó all pass
+# 7 tests ÔøΩ all pass
 ```
 
 | Test | What it verifies |
 |---|---|
 | `Create_Returns200AndAccountId` | Publish succeeds; Guid returned |
 | `Create_OwnerNamePreservedInResponse` | Data flows through notification |
-| `AfterCreate_AuditHandlerReceivesNotification` | Fan-out ó audit handler called |
+| `AfterCreate_AuditHandlerReceivesNotification` | Fan-out ÔøΩ audit handler called |
 | `AfterCreate_AuditEntryHasCorrectBalance` | Data integrity through the pipeline |
 | `MultipleCreates_AllRecordedInAuditLog` | Multiple notifications accumulated |
 | `ResetAudit_ClearsLog` | Test helper works |
@@ -3636,10 +3636,10 @@ dotnet test --filter "FullyQualifiedName~MediatRNotificationTests"
 
 ## Exercises
 
-1. Add a `TransactionCompletedNotification` with a third handler that sends an SMS (simulated) ó verify all three handlers run with a single `Publish` call.
+1. Add a `TransactionCompletedNotification` with a third handler that sends an SMS (simulated) ÔøΩ verify all three handlers run with a single `Publish` call.
 2. Throw an exception inside `SendWelcomeEmailHandler` and observe MediatR's default behaviour (it propagates by default). Then wrap it with a try/catch inside the handler.
 3. Add `[Transactional]`-style behaviour: use `IPipelineBehavior` to wrap `Publish` in a using block that logs start/end.
-4. Replace `IMediator.Publish` with `IMediator.Send` (returning a value) and compare the semantics ó `Send` expects exactly one handler; `Publish` allows zero or many.
+4. Replace `IMediator.Publish` with `IMediator.Send` (returning a value) and compare the semantics ÔøΩ `Send` expects exactly one handler; `Publish` allows zero or many.
 
 
 > **Branch:** `lesson/08-events/a-basic`
@@ -3652,30 +3652,30 @@ dotnet test --filter "FullyQualifiedName~MediatRNotificationTests"
 | Topic | C# | Java parallel |
 |---|---|---|
 | `delegate` | type-safe multicast function pointer | `java.util.function.*` / custom `@FunctionalInterface` |
-| `event` keyword | restricts delegate ó external code can only `+=` / `-=` | `ApplicationEventPublisher` / custom listener pattern |
+| `event` keyword | restricts delegate ÔøΩ external code can only `+=` / `-=` | `ApplicationEventPublisher` / custom listener pattern |
 | `EventHandler<T>` | standard `(object? sender, T args)` signature | `ApplicationListener<E>` |
 | `EventArgs` subclass | typed event payload | `ApplicationEvent` subclass |
 | `Action<T>` | delegate taking a parameter, returning void | `Consumer<T>` |
 | `Func<T, TResult>` | delegate taking a parameter, returning a value | `Function<T, R>` |
-| Multicast delegate | `handler += subscriber` ó all subscribers called | `List<ApplicationListener>` |
+| Multicast delegate | `handler += subscriber` ÔøΩ all subscribers called | `List<ApplicationListener>` |
 | In-process event bus | singleton class that holds and fires the event | `@Component` + `ApplicationEventPublisher` |
 
 ---
 
 ## 1. C# Delegates
 
-A delegate is a **type that holds a reference to a method** (or multiple methods ó multicast).
+A delegate is a **type that holds a reference to a method** (or multiple methods ÔøΩ multicast).
 
 ```csharp
-// Action<T> ó void return
+// Action<T> ÔøΩ void return
 Action<string> log = msg => Console.WriteLine(msg);
 log("hello");
 
-// Func<T, TResult> ó non-void return
+// Func<T, TResult> ÔøΩ non-void return
 Func<decimal, decimal> tax = amount => amount * 1.2m;
 var total = tax(100m); // 120
 
-// Multicast ó += adds a subscriber
+// Multicast ÔøΩ += adds a subscriber
 Action<string> multi = s => { };
 multi += s => Console.WriteLine($"[A] {s}");
 multi += s => Console.WriteLine($"[B] {s}");
@@ -3745,7 +3745,7 @@ public class PaymentAuditListener {
 ## 4. Registration in Program.cs
 
 ```csharp
-// Both are Singleton ó the subscriber is created eagerly to connect the event wire
+// Both are Singleton ÔøΩ the subscriber is created eagerly to connect the event wire
 builder.Services.AddSingleton<DomainEventBus>();
 builder.Services.AddSingleton<PaymentAuditSubscriber>();
 ```
@@ -3786,7 +3786,7 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~EventBasicTests"
-# 7 tests ó all pass
+# 7 tests ÔøΩ all pass
 ```
 
 | Test | What it verifies |
@@ -3794,7 +3794,7 @@ dotnet test --filter "FullyQualifiedName~EventBasicTests"
 | `PublishPayment_Returns200` | Event publish succeeds |
 | `PublishPayment_ResponseContainsPaymentId` | Guid returned |
 | `AfterPublish_AuditLogContainsEntry` | Subscriber received the event |
-| `MultiplePublishes_AllRecordedInAuditLog` | Multicast ó all events recorded |
+| `MultiplePublishes_AllRecordedInAuditLog` | Multicast ÔøΩ all events recorded |
 | `AuditEntry_ContainsCorrectAmount` | Event data is correct |
 | `DelegateDemo_Returns200` | Delegate demo endpoint works |
 | `DelegateDemo_FuncResultIs120` | `Func<decimal,decimal>` applies 20% tax correctly |
@@ -3805,7 +3805,7 @@ dotnet test --filter "FullyQualifiedName~EventBasicTests"
 
 1. Add a second subscriber `PaymentEmailSubscriber` that accumulates `(fromAccount, toAccount)` pairs and expose a `/event-demo/emails` endpoint to verify it.
 2. Unsubscribe from the event (`-=`) inside `PaymentAuditSubscriber` after recording 3 events and verify the log stops growing.
-3. Change `OnPaymentCreated` to be an async method and observe the compilation error ó then read about why `async void` event handlers are generally discouraged.
+3. Change `OnPaymentCreated` to be an async method and observe the compilation error ÔøΩ then read about why `async void` event handlers are generally discouraged.
 4. Add `Predicate<T>` (another built-in delegate) to the delegate demo: filter payments above a threshold amount.
 
 
@@ -3845,7 +3845,7 @@ public class ForbiddenException(string message)
     : DomainException(message, 403);
 ```
 
-Exceptions carry their own HTTP status ó the handler needs no `if/else` chain.
+Exceptions carry their own HTTP status ÔøΩ the handler needs no `if/else` chain.
 
 **Java parallel:**
 ```java
@@ -3858,7 +3858,7 @@ public class NotFoundException extends RuntimeException { ... }
 ## 2. DomainExceptionHandler + Handler Registration Order
 
 ```csharp
-// Specific handlers FIRST ó GlobalExceptionHandler is the catch-all at the end
+// Specific handlers FIRST ÔøΩ GlobalExceptionHandler is the catch-all at the end
 builder.Services.AddExceptionHandler<DomainExceptionHandler>();
 builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
@@ -3872,7 +3872,7 @@ passing control to the next registered handler.
 
 ---
 
-## 3. MediatR IPipelineBehavior ó Validation Middleware
+## 3. MediatR IPipelineBehavior ÔøΩ Validation Middleware
 
 ```csharp
 public class ValidationBehavior<TRequest, TResponse>(
@@ -3899,7 +3899,7 @@ public class ValidationBehavior<TRequest, TResponse>(
 }
 ```
 
-**Registered once** ó applies to ALL MediatR requests:
+**Registered once** ÔøΩ applies to ALL MediatR requests:
 ```csharp
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 ```
@@ -3926,7 +3926,7 @@ public class CreatePaymentHandler : IRequestHandler<CreatePaymentCommand, Paymen
 }
 ```
 
-**Java parallel:** Spring `@Service` method called by the controller ó MediatR decouples the
+**Java parallel:** Spring `@Service` method called by the controller ÔøΩ MediatR decouples the
 controller from the handler via message-passing.
 
 ---
@@ -3962,7 +3962,7 @@ Lesson/
     DomainExceptionHandler.cs      NEW  Maps DomainException ? ProblemDetails by StatusCode
     ValidationExceptionHandler.cs  NEW  Maps FluentValidation.ValidationException ? 400
   Pipeline/
-    ValidationBehavior.cs          NEW  IPipelineBehavior ó runs validators before handler
+    ValidationBehavior.cs          NEW  IPipelineBehavior ÔøΩ runs validators before handler
   Commands/
     CreatePaymentCommand.cs        NEW  IRequest + validator + IRequestHandler
   Controllers/
@@ -3978,7 +3978,7 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~ErrorHandlingAdvancedTests"
-# 9 tests ó all pass
+# 9 tests ÔøΩ all pass
 ```
 
 | Test | What it verifies |
@@ -4000,7 +4000,7 @@ dotnet test --filter "FullyQualifiedName~ErrorHandlingAdvancedTests"
 1. Add a `ConflictException` (409) and throw it when the same `FromAccount + ToAccount + Amount` combination is submitted twice.
 2. Add a `LoggingBehavior<TRequest, TResponse>` that logs the command type, execution time, and whether it succeeded or threw.
 3. Create a second `IRequestHandler` with its own `AbstractValidator` and verify the `ValidationBehavior` runs the correct validator per command type.
-4. Move `ValidationExceptionHandler` after `GlobalExceptionHandler` and observe which tests fail ó then restore the correct order.
+4. Move `ValidationExceptionHandler` after `GlobalExceptionHandler` and observe which tests fail ÔøΩ then restore the correct order.
 
 
 > **Branch:** `lesson/07-error-handling/b-intermediate`
@@ -4020,7 +4020,7 @@ dotnet test --filter "FullyQualifiedName~ErrorHandlingAdvancedTests"
 
 ---
 
-## 1. IExceptionHandler ó Global Error Handling
+## 1. IExceptionHandler ÔøΩ Global Error Handling
 
 ```csharp
 public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger)
@@ -4081,7 +4081,7 @@ public class GlobalHandler {
 ```
 
 `[ApiController]` automatically returns `ValidationProblemDetails` (extends `ProblemDetails`)
-for model validation failures ó same format, status 400 with an `errors` dictionary.
+for model validation failures ÔøΩ same format, status 400 with an `errors` dictionary.
 
 ---
 
@@ -4120,7 +4120,7 @@ if (!result.IsValid)
     return ValidationProblem(new ValidationProblemDetails(...));
 ```
 
-**Java parallel:** `@Autowired Validator validator; validator.validate(request)` ó same manual
+**Java parallel:** `@Autowired Validator validator; validator.validate(request)` ÔøΩ same manual
 approach before integrating with `@Valid`.
 
 ---
@@ -4157,7 +4157,7 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~ErrorHandlingIntermediateTests"
-# 9 tests ó all pass
+# 9 tests ÔøΩ all pass
 ```
 
 | Test | What it verifies |
@@ -4176,7 +4176,7 @@ dotnet test --filter "FullyQualifiedName~ErrorHandlingIntermediateTests"
 
 ## Exercises
 
-1. Register a second `IExceptionHandler` that specifically handles `ArgumentException` with 422 Unprocessable Entity ó handlers are called in registration order.
+1. Register a second `IExceptionHandler` that specifically handles `ArgumentException` with 422 Unprocessable Entity ÔøΩ handlers are called in registration order.
 2. Add a `MustAsync` rule to `CreateTransferRequestValidator` that checks account numbers are not on a "blocked list" (simulate with a list in memory).
 3. Replace the manual `validator.ValidateAsync(...)` in `ErrorDemoController` with a global `IActionFilter` that runs FluentValidation automatically for all POST/PUT requests.
 4. Add an `extensions` field to the `ProblemDetails` (e.g. `correlationId`) pulled from `HttpContext.Items`.
@@ -4281,7 +4281,7 @@ Lesson 07-B replaces per-action try/catch with a global exception handler.
 |--------|-------|-------|
 | `POST` | `/transfers` | Validated by annotations; 201 on success, 400 on violation |
 | `GET` | `/transfers/{id}` | 404 if not found |
-| `DELETE` | `/transfers/reset` | Test helper ó clears in-memory list |
+| `DELETE` | `/transfers/reset` | Test helper ÔøΩ clears in-memory list |
 | `GET` | `/transfers/simulate-error` | Forces a caught exception ? 500 |
 
 ---
@@ -4304,7 +4304,7 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~ErrorHandlingBasicTests"
-# 9 tests ó all pass
+# 9 tests ÔøΩ all pass
 ```
 
 | Test | What it verifies |
@@ -4325,7 +4325,7 @@ dotnet test --filter "FullyQualifiedName~ErrorHandlingBasicTests"
 
 1. Add a custom `[FutureDate]` attribute that validates a `DateTime` is in the future.
 2. Add a `[FromQuery]` parameter with `[Range]` to one of the GET endpoints and verify validation applies.
-3. Disable `[ApiController]`'s automatic validation suppression and add an explicit `if (!ModelState.IsValid) return ValidationProblem(ModelState)` ó verify the same tests pass.
+3. Disable `[ApiController]`'s automatic validation suppression and add an explicit `if (!ModelState.IsValid) return ValidationProblem(ModelState)` ÔøΩ verify the same tests pass.
 4. Add a second domain rule: `Amount` must be divisible by `0.01` (i.e. at most 2 decimal places).
 
 
@@ -4341,7 +4341,7 @@ dotnet test --filter "FullyQualifiedName~ErrorHandlingBasicTests"
 | `IResourceFilter` | wraps model binding; can cache / short-circuit early | Servlet Filter checking ETags |
 | `IResultFilter` | wraps result execution; can transform the response body | `ResponseBodyAdvice<T>.beforeBodyWrite()` |
 | `IEndpointFilter` | minimal-API equivalent of `IActionFilter` (.NET 7+) | `HandlerInterceptor` on a specific path |
-| `[TypeFilter(typeof(T))]` | apply a filter per-action with DI support | ó |
+| `[TypeFilter(typeof(T))]` | apply a filter per-action with DI support | ÔøΩ |
 | `context.Result = ...` | short-circuit (resource filter) | `filterChain.doFilter()` not called |
 
 ---
@@ -4375,7 +4375,7 @@ public class ResponseCacheFilter : IResourceFilter
     public void OnResourceExecuting(ResourceExecutingContext context)
     {
         if (_cache.TryGetValue(CacheKey(context.HttpContext), out var cached))
-            context.Result = cached; // short-circuit ó action never runs
+            context.Result = cached; // short-circuit ÔøΩ action never runs
     }
 
     public void OnResourceExecuted(ResourceExecutedContext context)
@@ -4386,7 +4386,7 @@ public class ResponseCacheFilter : IResourceFilter
 }
 ```
 
-On a cache hit the action is **never invoked** ó not even model binding runs.
+On a cache hit the action is **never invoked** ÔøΩ not even model binding runs.
 
 ---
 
@@ -4409,11 +4409,11 @@ public class EnvelopeResultFilter : IResultFilter
 }
 ```
 
-**Java parallel:** `ResponseBodyAdvice<T>` ó modify the return value before Jackson serialises it.
+**Java parallel:** `ResponseBodyAdvice<T>` ÔøΩ modify the return value before Jackson serialises it.
 
 ---
 
-## 4. ApiKeyEndpointFilter (IEndpointFilter ó minimal API)
+## 4. ApiKeyEndpointFilter (IEndpointFilter ÔøΩ minimal API)
 
 ```csharp
 public class ApiKeyEndpointFilter(string requiredKey) : IEndpointFilter
@@ -4455,9 +4455,9 @@ app.MapGet("/minimal/secure", () => Results.Ok(new { secret = "you have the key!
 ```
 Lesson/
   Filters/
-    ResponseCacheFilter.cs      NEW  IResourceFilter ó in-process response cache
-    EnvelopeResultFilter.cs     NEW  IResultFilter ó { data, meta } envelope
-    ApiKeyEndpointFilter.cs     NEW  IEndpointFilter ó apiKey query-param guard
+    ResponseCacheFilter.cs      NEW  IResourceFilter ÔøΩ in-process response cache
+    EnvelopeResultFilter.cs     NEW  IResultFilter ÔøΩ { data, meta } envelope
+    ApiKeyEndpointFilter.cs     NEW  IEndpointFilter ÔøΩ apiKey query-param guard
   Controllers/
     AdvancedFilterController.cs NEW  /advanced-filters/* endpoints
   Program.cs                          + minimal-API /minimal/secure route
@@ -4471,13 +4471,13 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~AdvancedFilterTests"
-# 9 tests ó all pass
+# 9 tests ÔøΩ all pass
 ```
 
 | Test | What it verifies |
 |---|---|
-| `Cached_FirstCall_Returns200` | Cache miss ó action runs, 200 returned |
-| `Cached_SecondCall_ReturnsCachedResult` | Cache hit ó `callCount` stays at 1 |
+| `Cached_FirstCall_Returns200` | Cache miss ÔøΩ action runs, 200 returned |
+| `Cached_SecondCall_ReturnsCachedResult` | Cache hit ÔøΩ `callCount` stays at 1 |
 | `Envelope_Returns200` | Filter is transparent to status code |
 | `Envelope_ResponseBodyContainsDataAndMeta` | Result wrapped in `{ data, meta }` |
 | `Envelope_MetaContainsVersion` | Meta contains `version: "06-C"` |
@@ -4584,7 +4584,7 @@ public class RequireBodyFilter : IAsyncActionFilter
         {
             context.Result = new BadRequestObjectResult(
                 new { error = "Request body is required." });
-            return; // short-circuit ó action never runs
+            return; // short-circuit ÔøΩ action never runs
         }
 
         await next();
@@ -4599,7 +4599,7 @@ public class RequireBodyFilter : IAsyncActionFilter
 public IActionResult BodyRequired([FromBody] SamplePayload? payload) => Ok(...);
 ```
 
-**Java parallel:** `preHandle()` returning `false` ó the controller method is never invoked.
+**Java parallel:** `preHandle()` returning `false` ÔøΩ the controller method is never invoked.
 
 ---
 
@@ -4634,8 +4634,8 @@ Response
 ```
 Lesson/
   Filters/
-    CorrelationIdFilter.cs   NEW  IActionFilter ó global correlation ID
-    RequireBodyFilter.cs     NEW  IAsyncActionFilter ó short-circuit on null body
+    CorrelationIdFilter.cs   NEW  IActionFilter ÔøΩ global correlation ID
+    RequireBodyFilter.cs     NEW  IAsyncActionFilter ÔøΩ short-circuit on null body
   Controllers/
     FilterDemoController.cs  NEW  /filters/* endpoints
   Program.cs                      + global CorrelationIdFilter registration
@@ -4649,7 +4649,7 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~ActionFilterTests"
-# 8 tests ó all pass
+# 8 tests ÔøΩ all pass
 ```
 
 | Test | What it verifies |
@@ -4670,7 +4670,7 @@ dotnet test --filter "FullyQualifiedName~ActionFilterTests"
 1. Convert `CorrelationIdFilter` to `IAsyncActionFilter` and verify the same tests pass.
 2. Add an `ExecutionTimeFilter` that measures the time between `OnActionExecuting` and `OnActionExecuted` and writes it to an `X-Execution-Time-Ms` response header.
 3. Create a `[RequireApiKey]` filter attribute that reads `X-Api-Key` from the request header and short-circuits with `401 Unauthorized` if it is absent or wrong.
-4. Register `RequireBodyFilter` **globally** and observe which existing tests break ó then restore per-action registration.
+4. Register `RequireBodyFilter` **globally** and observe which existing tests break ÔøΩ then restore per-action registration.
 
 
 > **Branch:** `lesson/06-middleware/a-basic`
@@ -4686,7 +4686,7 @@ dotnet test --filter "FullyQualifiedName~ActionFilterTests"
 | `RequestDelegate next` | call the next component in the pipeline | `filterChain.doFilter()` |
 | Middleware ordering | registration order in `Program.cs` controls execution | `FilterRegistrationBean.setOrder()` |
 | Request/response logging | log before/after `next(context)` | `CommonsRequestLoggingFilter` |
-| Response header injection | add header before `next()` | `OncePerRequestFilter` ó `response.setHeader()` |
+| Response header injection | add header before `next()` | `OncePerRequestFilter` ÔøΩ `response.setHeader()` |
 
 ---
 
@@ -4739,7 +4739,7 @@ public class RequestLoggingMiddleware(ILogger<RequestLoggingMiddleware> logger) 
 }
 ```
 
-**Java parallel:** `OncePerRequestFilter.doFilterInternal()` ó call `filterChain.doFilter()`,
+**Java parallel:** `OncePerRequestFilter.doFilterInternal()` ÔøΩ call `filterChain.doFilter()`,
 then log after it returns.
 
 ---
@@ -4753,7 +4753,7 @@ public class ResponseHeaderMiddleware : IMiddleware
     {
         context.Response.Headers["X-Powered-By"] = "ASP.NET Core 10 Lesson 06";
         await next(context);
-        // response body has already started streaming ó do not write body here
+        // response body has already started streaming ÔøΩ do not write body here
     }
 }
 ```
@@ -4769,7 +4769,7 @@ Headers **must** be set before `next()` is called (or before the response body s
 builder.Services.AddTransient<RequestLoggingMiddleware>();
 builder.Services.AddTransient<ResponseHeaderMiddleware>();
 
-// Add to pipeline ó ORDER MATTERS
+// Add to pipeline ÔøΩ ORDER MATTERS
 app.UseMiddleware<ResponseHeaderMiddleware>();   // outermost wrapper
 app.UseMiddleware<RequestLoggingMiddleware>();   // logs every request that reaches it
 ```
@@ -4790,8 +4790,8 @@ public FilterRegistrationBean<RequestLoggingFilter> loggingFilter() {
 
 | Method | Route | Notes |
 |--------|-------|-------|
-| `GET` | `/middleware/ping` | Returns `{ message: "pong" }` ó used to verify header injection |
-| `GET` | `/middleware/slow` | 10 ms delay ó verifies elapsed-time logging |
+| `GET` | `/middleware/ping` | Returns `{ message: "pong" }` ÔøΩ used to verify header injection |
+| `GET` | `/middleware/slow` | 10 ms delay ÔøΩ verifies elapsed-time logging |
 
 ---
 
@@ -4800,8 +4800,8 @@ public FilterRegistrationBean<RequestLoggingFilter> loggingFilter() {
 ```
 Lesson/
   Middleware/
-    RequestLoggingMiddleware.cs  NEW  IMiddleware ó logs method, path, status, elapsed
-    ResponseHeaderMiddleware.cs  NEW  IMiddleware ó injects X-Powered-By header
+    RequestLoggingMiddleware.cs  NEW  IMiddleware ÔøΩ logs method, path, status, elapsed
+    ResponseHeaderMiddleware.cs  NEW  IMiddleware ÔøΩ injects X-Powered-By header
   Controllers/
     MiddlewareDemoController.cs  NEW  /middleware/ping + /middleware/slow
   Program.cs                          + middleware DI registrations + UseMiddleware calls
@@ -4815,7 +4815,7 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~MiddlewareBasicTests"
-# 7 tests ó all pass
+# 7 tests ÔøΩ all pass
 ```
 
 | Test | What it verifies |
@@ -4834,7 +4834,7 @@ dotnet test --filter "FullyQualifiedName~MiddlewareBasicTests"
 
 1. Add a `CorrelationIdMiddleware` that reads `X-Correlation-Id` from the request (or generates a new `Guid` if absent) and echoes it back in the response headers.
 2. Change `ResponseHeaderMiddleware` to add a `Cache-Control: no-store` header and verify with a test.
-3. Add a middleware that short-circuits the pipeline for requests to `/health` and returns `200 OK` directly ó bypassing the router and all downstream middleware.
+3. Add a middleware that short-circuits the pipeline for requests to `/health` and returns `200 OK` directly ÔøΩ bypassing the router and all downstream middleware.
 4. Register `RequestLoggingMiddleware` **before** `ResponseHeaderMiddleware` and observe how the log output changes (the status code logged will still be correct because both happen after `next()`).
 
 
@@ -4852,7 +4852,7 @@ dotnet test --filter "FullyQualifiedName~MiddlewareBasicTests"
 | `Zip` | pair two sequences by index | `IntStream.range + get(i)` |
 | `Chunk` | split into fixed-size pages | Guava `Lists.partition` |
 | `AsParallel` (PLINQ) | CPU-bound parallelism over thread pool | `stream().parallel()` |
-| Expression trees | `Expression<Func<T,bool>>` ó build predicates at runtime | Reflection + `Predicate<T>` |
+| Expression trees | `Expression<Func<T,bool>>` ÔøΩ build predicates at runtime | Reflection + `Predicate<T>` |
 | `IAsyncEnumerable<T>` | async streaming with `await foreach` | Project Reactor `Flux<T>` |
 
 ---
@@ -4873,7 +4873,7 @@ public static class ProductExtensions
         => source.Where(p => p.Price >= min);
 }
 
-// Usage ó reads like built-in LINQ
+// Usage ÔøΩ reads like built-in LINQ
 var result = products.InStock().PriceAbove(50m).MostExpensive(3).ToList();
 ```
 
@@ -4882,7 +4882,7 @@ var result = products.InStock().PriceAbove(50m).MostExpensive(3).ToList();
 
 ---
 
-## 2. Aggregate ó General-Purpose Fold
+## 2. Aggregate ÔøΩ General-Purpose Fold
 
 `Aggregate` is the universal accumulator operator (like `reduce` in functional programming):
 
@@ -4897,13 +4897,13 @@ string catalogue = products
 ```
 
 For common aggregates (`Sum`, `Average`, `Max`, `Min`, `Count`) prefer the specialised
-operators ó they are more readable and EF Core can translate them to SQL.
+operators ÔøΩ they are more readable and EF Core can translate them to SQL.
 
 **Java:** `stream().reduce(BigDecimal.ZERO, (acc, p) -> acc.add(p.getPrice()), BigDecimal::add)`
 
 ---
 
-## 3. Zip ó Pair Two Sequences by Index
+## 3. Zip ÔøΩ Pair Two Sequences by Index
 
 ```csharp
 var sorted = products.OrderByDescending(p => p.Price);
@@ -4912,7 +4912,7 @@ var ranks  = Enumerable.Range(1, products.Count);
 var ranked = sorted
     .Zip(ranks, (p, rank) => new RankedProduct(rank, p.Name, p.Price))
     .ToList();
-// ? [ { Rank=1, Name="Laptop Pro", Price=1299 }, Ö ]
+// ? [ { Rank=1, Name="Laptop Pro", Price=1299 }, ÔøΩ ]
 ```
 
 `Zip` stops at the shorter sequence. Three-sequence overloads exist:
@@ -4922,7 +4922,7 @@ var ranked = sorted
 
 ---
 
-## 4. Chunk ó Split into Fixed-Size Pages
+## 4. Chunk ÔøΩ Split into Fixed-Size Pages
 
 Introduced in .NET 6:
 
@@ -4937,7 +4937,7 @@ Product[][] pages = products.Chunk(3).ToArray();
 
 ---
 
-## 5. AsParallel ó PLINQ Basics
+## 5. AsParallel ÔøΩ PLINQ Basics
 
 ```csharp
 var expensive = products
@@ -4949,14 +4949,14 @@ var expensive = products
 
 Guidelines:
 - Use for **CPU-bound** work on large collections (> ~1 000 items as a rough threshold).
-- For **I/O-bound** work, use `async/await` ó PLINQ blocks threads.
+- For **I/O-bound** work, use `async/await` ÔøΩ PLINQ blocks threads.
 - Results are non-deterministic unless you add `AsOrdered()` or a final `OrderBy`.
 
-**Java:** `stream().parallel()` ó same concept and same caveats.
+**Java:** `stream().parallel()` ÔøΩ same concept and same caveats.
 
 ---
 
-## 6. Expression Trees ó Intro
+## 6. Expression Trees ÔøΩ Intro
 
 An `Expression<Func<T, bool>>` stores a LINQ query as a **data structure** (AST) rather
 than a compiled delegate. EF Core reads this tree to generate SQL.
@@ -4980,19 +4980,19 @@ This pattern powers dynamic query builders, AutoMapper projections, and EF Core 
 
 ---
 
-## 7. IAsyncEnumerable\<T\> ó Async Streaming
+## 7. IAsyncEnumerable\<T\> ÔøΩ Async Streaming
 
 `IAsyncEnumerable<T>` lets you produce and consume items **one at a time** asynchronously,
 without buffering the entire result:
 
 ```csharp
-// Producer ó async iterator method
+// Producer ÔøΩ async iterator method
 public async IAsyncEnumerable<Product> StreamProductsAsync(decimal maxPrice,
     [EnumeratorCancellation] CancellationToken ct = default)
 {
     foreach (var p in products.Where(p => p.Price <= maxPrice))
     {
-        await Task.Delay(0, ct); // simulate async source (DB cursor, HTTP stream, Ö)
+        await Task.Delay(0, ct); // simulate async source (DB cursor, HTTP stream, ÔøΩ)
         yield return p;
     }
 }
@@ -5014,10 +5014,10 @@ file streaming, server-sent events, gRPC streaming.
 | Method | Route | Notes |
 |--------|-------|-------|
 | `GET` | `/linq/advanced/top-in-stock?minPrice=50&topN=3` | Custom extensions chained |
-| `GET` | `/linq/advanced/inventory-value` | `Aggregate` ó sum of Price ◊ Stock |
-| `GET` | `/linq/advanced/catalogue` | `Aggregate` ó comma-separated names |
-| `GET` | `/linq/advanced/ranked` | `Zip` ó products with price rank |
-| `GET` | `/linq/advanced/chunks?pageSize=3` | `Chunk` ó pages of products |
+| `GET` | `/linq/advanced/inventory-value` | `Aggregate` ÔøΩ sum of Price ÔøΩ Stock |
+| `GET` | `/linq/advanced/catalogue` | `Aggregate` ÔøΩ comma-separated names |
+| `GET` | `/linq/advanced/ranked` | `Zip` ÔøΩ products with price rank |
+| `GET` | `/linq/advanced/chunks?pageSize=3` | `Chunk` ÔøΩ pages of products |
 | `GET` | `/linq/advanced/parallel?minPrice=50` | `AsParallel` filter |
 | `GET` | `/linq/advanced/expression-tree?maxPrice=100` | Runtime-built predicate |
 | `GET` | `/linq/advanced/stream?maxPrice=100` | `IAsyncEnumerable<T>` streaming |
@@ -5047,7 +5047,7 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~LinqAdvancedTests"
-# 13 tests ó all pass
+# 13 tests ÔøΩ all pass
 ```
 
 | Test | What it verifies |
@@ -5070,9 +5070,9 @@ dotnet test --filter "FullyQualifiedName~LinqAdvancedTests"
 
 ## Exercises
 
-1. Add a `SumBy<T>` generic extension method on `IEnumerable<T>` that takes a `Func<T, decimal>` selector ó a miniature reimplementation of `Sum`.
+1. Add a `SumBy<T>` generic extension method on `IEnumerable<T>` that takes a `Func<T, decimal>` selector ÔøΩ a miniature reimplementation of `Sum`.
 2. Use `Aggregate` with a seed of `new Dictionary<string, decimal>()` to build a category ? total-price map in a single pass.
-3. Add `AsOrdered()` to the PLINQ pipeline and verify the test still passes ó then remove it and observe whether order is preserved across runs.
+3. Add `AsOrdered()` to the PLINQ pipeline and verify the test still passes ÔøΩ then remove it and observe whether order is preserved across runs.
 4. Modify `StreamProductsAsync` to introduce a real `await Task.Delay(1)` and test the endpoint with a short cancellation token to observe `OperationCanceledException` propagation.
 5. Build a more complex expression tree: `p => p.Price < maxPrice && p.Category == category` using `Expression.AndAlso`.
 
@@ -5099,14 +5099,14 @@ dotnet test --filter "FullyQualifiedName~LinqAdvancedTests"
 ## 1. IEnumerable\<T\> vs IQueryable\<T\>
 
 `IEnumerable<T>` iterates in memory; `IQueryable<T>` builds an expression tree that a
-provider (EF Core, LINQ to SQL, Ö) translates to SQL before touching the database.
+provider (EF Core, LINQ to SQL, ÔøΩ) translates to SQL before touching the database.
 
 ```csharp
-// IEnumerable path ó ALL rows loaded first, then filtered in C#
+// IEnumerable path ÔøΩ ALL rows loaded first, then filtered in C#
 IEnumerable<Product> all = Products.ToList();           // materialise
 var result = all.Where(p => p.Category == cat).ToList();
 
-// IQueryable-equivalent ó filter is composed before materialisation
+// IQueryable-equivalent ÔøΩ filter is composed before materialisation
 IEnumerable<Product> lazy = Products;                   // no iteration yet
 lazy = lazy.Where(p => p.Category == cat);              // deferred
 var result = lazy.ToList();                             // single pass, only matching elements
@@ -5137,7 +5137,7 @@ var stats = products
 
 ---
 
-## 3. Join ó Equi-Join Two Sequences
+## 3. Join ÔøΩ Equi-Join Two Sequences
 
 ```csharp
 var lines = orders.Join(
@@ -5155,7 +5155,7 @@ var lines = orders.Join(
 
 ---
 
-## 4. SelectMany ó Flattening
+## 4. SelectMany ÔøΩ Flattening
 
 ```csharp
 // Each group contributes multiple strings; SelectMany flattens them into one sequence
@@ -5211,7 +5211,7 @@ In EF Core queries, anonymous types in `Select` translate to a `SELECT Name, Pri
 | `GET` | `/linq/orders/lines` | `Join` products and orders |
 | `GET` | `/linq/products/labels` | `SelectMany` flattened labels |
 | `GET` | `/linq/products/discounted?discountRate=0.10&maxDiscountedPrice=100` | `let` clause demo |
-| `GET` | `/linq/orders/top?topN=3` | Chained pipeline ó top N by line total |
+| `GET` | `/linq/orders/top?topN=3` | Chained pipeline ÔøΩ top N by line total |
 
 ---
 
@@ -5239,7 +5239,7 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~LinqIntermediateTests"
-# 13 tests ó all pass
+# 13 tests ÔøΩ all pass
 ```
 
 | Test | What it verifies |
@@ -5250,7 +5250,7 @@ dotnet test --filter "FullyQualifiedName~LinqIntermediateTests"
 | `GetCategorySummaries_CountsAreCorrect` | Per-category counts match seed data |
 | `GetCategorySummaries_TotalValueMatchesSeedData` | Sum of all totals equals sum of all prices |
 | `GetOrderLines_CountMatchesSeedOrders` | Join produces one row per order |
-| `GetOrderLines_LineTotalIsUnitPriceTimesQuantity` | LineTotal = UnitPrice ◊ Quantity |
+| `GetOrderLines_LineTotalIsUnitPriceTimesQuantity` | LineTotal = UnitPrice ÔøΩ Quantity |
 | `GetProductLabels_CountMatchesProductCount` | SelectMany flattens to exactly 10 labels |
 | `GetProductLabels_EachLabelContainsCategoryAndName` | Format `[Category] Name` respected |
 | `GetDiscounted_AllDiscountedPricesAreBelowMaxPrice` | let filter applied correctly |
@@ -5262,10 +5262,10 @@ dotnet test --filter "FullyQualifiedName~LinqIntermediateTests"
 
 ## Exercises
 
-1. Add `GET /linq/categories/summary?minCount=2` ó filter `CategorySummary` rows where `Count >= minCount` using a chained `.Where()` after `GroupBy`.
-2. Add `GET /linq/orders/by-customer/{customerId}` ó use `Join` + `Where` to return only order lines for a specific customer.
-3. Rewrite `GetOrderLines` using query syntax with an explicit `join Ö in Ö on Ö equals Ö` clause and compare readability.
-4. Replace `SelectMany` in `GetAllProductLabels` with a nested `foreach` loop and verify the output is identical ó then appreciate the brevity of `SelectMany`.
+1. Add `GET /linq/categories/summary?minCount=2` ÔøΩ filter `CategorySummary` rows where `Count >= minCount` using a chained `.Where()` after `GroupBy`.
+2. Add `GET /linq/orders/by-customer/{customerId}` ÔøΩ use `Join` + `Where` to return only order lines for a specific customer.
+3. Rewrite `GetOrderLines` using query syntax with an explicit `join ÔøΩ in ÔøΩ on ÔøΩ equals ÔøΩ` clause and compare readability.
+4. Replace `SelectMany` in `GetAllProductLabels` with a nested `foreach` loop and verify the output is identical ÔøΩ then appreciate the brevity of `SelectMany`.
 
 
 > **Branch:** `lesson/05-linq/a-basic`
@@ -5278,13 +5278,13 @@ dotnet test --filter "FullyQualifiedName~LinqIntermediateTests"
 | Topic | C# LINQ | Java parallel |
 |---|---|---|
 | Method syntax | `.Where().Select().ToList()` | `stream().filter().map().collect()` |
-| Query syntax | `from p in Ö where Ö select p` | no direct equivalent (method chains only) |
-| `Where` | filter elements | `stream().filter(Ö)` |
-| `Select` | project / transform elements | `stream().map(Ö)` |
-| `OrderBy` / `OrderByDescending` | sort; `ThenBy` for secondary key | `stream().sorted(ComparatorÖ)` |
-| `FirstOrDefault` | first match or `null` ó never throws | `stream().findFirst().orElse(null)` |
-| `ToList` | terminal ó materialises the pipeline | `stream().collect(toList())` |
-| Deferred execution | pipeline is lazy ó work happens at the terminal operator | Java Streams are also lazy |
+| Query syntax | `from p in ÔøΩ where ÔøΩ select p` | no direct equivalent (method chains only) |
+| `Where` | filter elements | `stream().filter(ÔøΩ)` |
+| `Select` | project / transform elements | `stream().map(ÔøΩ)` |
+| `OrderBy` / `OrderByDescending` | sort; `ThenBy` for secondary key | `stream().sorted(ComparatorÔøΩ)` |
+| `FirstOrDefault` | first match or `null` ÔøΩ never throws | `stream().findFirst().orElse(null)` |
+| `ToList` | terminal ÔøΩ materialises the pipeline | `stream().collect(toList())` |
+| Deferred execution | pipeline is lazy ÔøΩ work happens at the terminal operator | Java Streams are also lazy |
 
 ---
 
@@ -5308,13 +5308,13 @@ var result = (from p in products
 ```
 
 Choose whichever reads more clearly for the task. Method syntax is more common for simple
-pipelines; query syntax shines when using `let`, `join`, or `group Ö by`.
+pipelines; query syntax shines when using `let`, `join`, or `group ÔøΩ by`.
 
-**Java parallel:** Java Streams only have method chains ó there is no query-syntax equivalent.
+**Java parallel:** Java Streams only have method chains ÔøΩ there is no query-syntax equivalent.
 
 ---
 
-## 2. Where ó Filtering
+## 2. Where ÔøΩ Filtering
 
 ```csharp
 var electronics = products.Where(p => p.Category == "Electronics").ToList();
@@ -5327,7 +5327,7 @@ The predicate is not evaluated until a terminal operator materialises the pipeli
 
 ---
 
-## 3. Select ó Projection
+## 3. Select ÔøΩ Projection
 
 ```csharp
 // Project to a value tuple
@@ -5351,17 +5351,17 @@ var sorted = products
 ```
 
 `ThenBy` / `ThenByDescending` add secondary keys.
-Do **not** chain multiple `OrderBy` calls ó each resets the sort order.
+Do **not** chain multiple `OrderBy` calls ÔøΩ each resets the sort order.
 
 **Java:** `stream().sorted(Comparator.comparing(Product::getPrice).reversed().thenComparing(Product::getName))`
 
 ---
 
-## 5. FirstOrDefault ó Safe Single-Element Lookup
+## 5. FirstOrDefault ÔøΩ Safe Single-Element Lookup
 
 ```csharp
 Product? found = products.FirstOrDefault(p => p.Id == id);
-// Returns null if no match ó never throws.
+// Returns null if no match ÔøΩ never throws.
 ```
 
 | Method | No match | Multiple matches |
@@ -5377,7 +5377,7 @@ Product? found = products.FirstOrDefault(p => p.Id == id);
 
 ## 6. Deferred Execution
 
-Building a LINQ pipeline does **not** iterate the source ó that work is deferred until a
+Building a LINQ pipeline does **not** iterate the source ÔøΩ that work is deferred until a
 terminal operator is called.
 
 ```csharp
@@ -5387,7 +5387,7 @@ IEnumerable<string> query = products
     .OrderBy(p => p.Price)       // deferred
     .Select(p => p.Name);        // deferred
 
-// Step 4: terminal operator ó iterates ONCE and produces List<string>
+// Step 4: terminal operator ÔøΩ iterates ONCE and produces List<string>
 List<string> result = query.ToList();
 ```
 
@@ -5405,9 +5405,9 @@ after a terminal operation has been called.
 |--------|-------|-------|
 | `GET` | `/linq/products` | All products; optional `?category=` filter |
 | `GET` | `/linq/products/query-syntax?category=` | Same filter via query syntax |
-| `GET` | `/linq/products/name-price` | `Select` projection ó name + price only |
+| `GET` | `/linq/products/name-price` | `Select` projection ÔøΩ name + price only |
 | `GET` | `/linq/products/by-price-desc` | `OrderByDescending` + `ThenBy` |
-| `GET` | `/linq/products/{id}` | `FirstOrDefault` ó 404 if not found |
+| `GET` | `/linq/products/{id}` | `FirstOrDefault` ÔøΩ 404 if not found |
 | `GET` | `/linq/products/affordable?maxPrice=50` | Deferred pipeline materialised at `ToList` |
 
 ---
@@ -5434,7 +5434,7 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~LinqBasicTests"
-# 10 tests ó all pass
+# 10 tests ÔøΩ all pass
 ```
 
 | Test | What it verifies |
@@ -5457,18 +5457,18 @@ dotnet test --filter "FullyQualifiedName~LinqBasicTests"
 1. Add `GET /linq/products/top/{n}` that uses `Take(n)` to return the `n` most expensive products.
 2. Replace the `ToList()` terminal in `GetAffordableProductNames` with `ToArray()` and observe that the tests still pass.
 3. Add a `Skip` + `Take` overload to `/linq/products?page=1&pageSize=3` to practice manual pagination over an in-memory collection.
-4. Try calling `.Where(Ö)` twice on the same pipeline and verify that both predicates are applied (they are ANDed together in the iteration).
+4. Try calling `.Where(ÔøΩ)` twice on the same pipeline and verify that both predicates are applied (they are ANDed together in the iteration).
 
-| Compiled query | `EF.CompileAsyncQuery(Ö)` | `@NamedQuery` / `@NamedNativeQuery` |
-| Split query | `.Include(Ö).AsSplitQuery()` | `@EntityGraph` with `SUBSELECT` fetch |
-| Cartesian explosion | single JOIN ? N◊M rows | N+1 / cartesian product in JPA `JOIN FETCH` |
+| Compiled query | `EF.CompileAsyncQuery(ÔøΩ)` | `@NamedQuery` / `@NamedNativeQuery` |
+| Split query | `.Include(ÔøΩ).AsSplitQuery()` | `@EntityGraph` with `SUBSELECT` fetch |
+| Cartesian explosion | single JOIN ? NÔøΩM rows | N+1 / cartesian product in JPA `JOIN FETCH` |
 
 ---
 
-## 1. FromSqlRaw ó Hand-written Parameterised SQL
+## 1. FromSqlRaw ÔøΩ Hand-written Parameterised SQL
 
 `FromSqlRaw` lets you write arbitrary SQL while still getting tracked entities back.
-EF Core can compose additional LINQ operators (`Where`, `OrderBy`, `Include`, Ö) on top.
+EF Core can compose additional LINQ operators (`Where`, `OrderBy`, `Include`, ÔøΩ) on top.
 
 ```csharp
 var accounts = await db.BankAccounts
@@ -5527,33 +5527,33 @@ Every time you call a LINQ query EF Core translates the expression tree to SQL.
 eliminating the per-call overhead on hot paths (thousands of calls per second).
 
 ```csharp
-// Declared as a static field ó compiled once per AppDomain.
+// Declared as a static field ÔøΩ compiled once per AppDomain.
 private static readonly Func<BankingDbContext, string, IAsyncEnumerable<BankAccount>>
     _getByNumber = EF.CompileAsyncQuery(
         (BankingDbContext ctx, string number) =>
             ctx.BankAccounts.Where(a => a.AccountNumber == number));
 
-// Usage ó no translation overhead on subsequent calls.
+// Usage ÔøΩ no translation overhead on subsequent calls.
 await foreach (var account in _getByNumber(db, accountNumber))
     return account;
 ```
 
-**Java parallel:** Hibernate `@NamedQuery` / `@NamedNativeQuery` ó compiled during
+**Java parallel:** Hibernate `@NamedQuery` / `@NamedNativeQuery` ÔøΩ compiled during
 `SessionFactory` bootstrap and reused for every execution.
 
 ---
 
-## 4. Split Queries ó Preventing Cartesian Explosion
+## 4. Split Queries ÔøΩ Preventing Cartesian Explosion
 
 When you `Include` a collection navigation on multiple parent rows, EF Core's default
 single-JOIN strategy produces a **Cartesian product**:
 
 ```
-2 accounts ◊ 5 transactions = 10 result rows transferred
+2 accounts ÔøΩ 5 transactions = 10 result rows transferred
 (even though only 7 logical rows exist)
 ```
 
-With large collections (100 parents ◊ 1 000 children) this multiplies to **100 000 rows**
+With large collections (100 parents ÔøΩ 1 000 children) this multiplies to **100 000 rows**
 over the wire for what is logically 1 100 rows of data.
 
 `AsSplitQuery()` fires two separate SELECTs and stitches the results in memory:
@@ -5565,7 +5565,7 @@ var accounts = await db.BankAccounts
     .OrderBy(a => a.AccountNumber)
     .ToListAsync();
 // SQL 1: SELECT * FROM BankAccounts
-// SQL 2: SELECT * FROM Transactions WHERE BankAccountId IN (1, 2, Ö)
+// SQL 2: SELECT * FROM Transactions WHERE BankAccountId IN (1, 2, ÔøΩ)
 ```
 
 **Trade-off:** two round-trips instead of one; results may be slightly inconsistent if
@@ -5584,7 +5584,7 @@ collection sizes make the Cartesian product impractical.
 | `GET` | `/accounts/raw?minBalance=0` | `FromSqlRaw` parameterised query |
 | `GET` | `/accounts/by-number-sp/{number}` | Stored-procedure simulation |
 | `GET` | `/accounts/by-number-compiled/{number}` | Compiled query lookup |
-| `GET` | `/accounts/with-transactions` | `AsSplitQuery` ó accounts + transactions |
+| `GET` | `/accounts/with-transactions` | `AsSplitQuery` ÔøΩ accounts + transactions |
 
 ---
 
@@ -5610,7 +5610,7 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~AccountsControllerRawSqlTests"
-# 10 tests ó all pass
+# 10 tests ÔøΩ all pass
 ```
 
 | Test | What it verifies |
@@ -5659,17 +5659,17 @@ dotnet test --filter "FullyQualifiedName~AccountsControllerRawSqlTests"
 
 ## 1. IQueryable vs IEnumerable
 
-**Key concept:** `IQueryable<T>` is an unevaluated expression tree ó EF Core composes SQL
-from it and executes when you call a terminal operator (`ToListAsync`, `FirstOrDefaultAsync`, Ö).
-`IEnumerable<T>` is in-memory ó all rows are loaded before filtering/projecting.
+**Key concept:** `IQueryable<T>` is an unevaluated expression tree ÔøΩ EF Core composes SQL
+from it and executes when you call a terminal operator (`ToListAsync`, `FirstOrDefaultAsync`, ÔøΩ).
+`IEnumerable<T>` is in-memory ÔøΩ all rows are loaded before filtering/projecting.
 
 ```csharp
-// IQueryable ó SQL WHERE is added before the query is sent
+// IQueryable ÔøΩ SQL WHERE is added before the query is sent
 IQueryable<BankAccount> query = db.BankAccounts;
 query = query.Where(a => a.AccountType == "Savings"); // no DB round-trip yet
 var list = await query.ToListAsync();                  // ONE SQL query with WHERE
 
-// IEnumerable ó loads ALL rows, then filters in C#
+// IEnumerable ÔøΩ loads ALL rows, then filters in C#
 IEnumerable<BankAccount> all = await db.BankAccounts.ToListAsync();
 var savings = all.Where(a => a.AccountType == "Savings"); // in-memory!
 ```
@@ -5736,7 +5736,7 @@ var stats = await db.BankAccounts
 
 > **SQLite caveat:** SQLite's `decimal` support for aggregates is limited.
 > The implementation fetches `(AccountType, Balance)` columns via `IQueryable` projection,
-> then completes the grouping in C# memory ó illustrating the intentional IQueryable ? IEnumerable handoff:
+> then completes the grouping in C# memory ÔøΩ illustrating the intentional IQueryable ? IEnumerable handoff:
 >
 > ```csharp
 > var rows = await db.BankAccounts
@@ -5756,17 +5756,17 @@ var stats = await db.BankAccounts
 ## 5. Any / All / Count
 
 ```csharp
-// Any ó SQL: SELECT CASE WHEN EXISTS (...) THEN 1 ELSE 0 END
+// Any ÔøΩ SQL: SELECT CASE WHEN EXISTS (...) THEN 1 ELSE 0 END
 bool hasHighBalance = await db.BankAccounts.AnyAsync(a => a.Balance > threshold);
 
-// All ó SQL: SELECT CASE WHEN NOT EXISTS (... WHERE NOT condition) THEN 1 ELSE 0 END
+// All ÔøΩ SQL: SELECT CASE WHEN NOT EXISTS (... WHERE NOT condition) THEN 1 ELSE 0 END
 bool allPositive = await db.BankAccounts.AllAsync(a => a.Balance > 0);
 
-// Count ó SQL: SELECT COUNT(*) FROM BankAccounts WHERE IsActive = 1
+// Count ÔøΩ SQL: SELECT COUNT(*) FROM BankAccounts WHERE IsActive = 1
 int active = await db.BankAccounts.CountAsync(a => a.IsActive);
 ```
 
-None of these load entity rows ó they return a single scalar from the database.
+None of these load entity rows ÔøΩ they return a single scalar from the database.
 
 **Java parallel:**
 - `AnyAsync` ? `repository.existsByBalanceGreaterThan(threshold)`
@@ -5781,8 +5781,8 @@ None of these load entity rows ó they return a single scalar from the database.
 |--------|-------|-------|
 | `GET` | `/accounts/summary?page=1&pageSize=10` | Paginated + projected DTO list |
 | `GET` | `/accounts/stats` | GroupBy AccountType with COUNT / SUM / AVG |
-| `GET` | `/accounts/any-high-balance?threshold=10000` | AnyAsync ó returns `true`/`false` |
-| `GET` | `/accounts/all-positive` | AllAsync ó returns `true`/`false` |
+| `GET` | `/accounts/any-high-balance?threshold=10000` | AnyAsync ÔøΩ returns `true`/`false` |
+| `GET` | `/accounts/all-positive` | AllAsync ÔøΩ returns `true`/`false` |
 | `GET` | `/accounts/count?type=Savings` | CountAsync with optional type filter |
 
 ---
@@ -5818,7 +5818,7 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~AccountsControllerAdvancedTests"
-# 11 tests ó all pass
+# 11 tests ÔøΩ all pass
 ```
 
 | Test | What it verifies |
@@ -5840,15 +5840,15 @@ dotnet test --filter "FullyQualifiedName~AccountsControllerAdvancedTests"
 ## Exercises
 
 1. Add a `GET /accounts/summary` sort parameter (`sortBy=balance&desc=true`) using conditional `OrderBy` on `IQueryable`.
-2. Add `GET /accounts/stats/transactions` ó GroupBy `AccountType` with `SUM` of transaction amounts (requires a join to `Transactions`).
+2. Add `GET /accounts/stats/transactions` ÔøΩ GroupBy `AccountType` with `SUM` of transaction amounts (requires a join to `Transactions`).
 3. Implement server-side GroupBy for a provider that supports it (e.g., SQL Server) and compare the generated SQL to the SQLite fallback.
 4. Add a `MinBalance` / `MaxBalance` filter to `/accounts/summary` and observe how adding `.Where()` clauses to an `IQueryable` before `Skip`/`Take` pushes the filter into the SQL `WHERE` clause.
 
 | Eager loading | `.Include(c => c.Accounts)` | `@EntityGraph` / `JOIN FETCH` |
 | Chained loading | `.ThenInclude(a => a.Address)` | nested `JOIN FETCH` in JPQL |
 | Filtered Include | `.Include(c => c.Accounts.Where(a => a.IsActive))` | `@Query` with WHERE on the join |
-| FK assignment | set `account.CustomerId` ó EF updates the row | set the `@ManyToOne` field + persist |
-| Lazy loading | disabled by default ó must call `Include` explicitly | `FetchType.LAZY` (default in JPA) |
+| FK assignment | set `account.CustomerId` ÔøΩ EF updates the row | set the `@ManyToOne` field + persist |
+| Lazy loading | disabled by default ÔøΩ must call `Include` explicitly | `FetchType.LAZY` (default in JPA) |
 
 ---
 
@@ -5913,7 +5913,7 @@ var customer = await db.Customers
 
 ---
 
-## 3. ThenInclude ó Loading Nested Navigation
+## 3. ThenInclude ÔøΩ Loading Nested Navigation
 
 ```csharp
 var customer = await db.Customers
@@ -5947,7 +5947,7 @@ await uow.CommitAsync();
 // SQL: UPDATE BankAccounts SET CustomerId = @id WHERE Id = @accountId
 ```
 
-Setting the FK scalar property is enough ó EF Core keeps navigation in sync within the same DbContext scope.
+Setting the FK scalar property is enough ÔøΩ EF Core keeps navigation in sync within the same DbContext scope.
 
 ---
 
@@ -5990,7 +5990,7 @@ Lesson.Tests/
 
 ```bash
 dotnet test --filter "FullyQualifiedName~CustomersControllerTests"
-# 7 tests ó all pass
+# 7 tests ÔøΩ all pass
 ```
 
 | Test | What it verifies |
@@ -5998,17 +5998,93 @@ dotnet test --filter "FullyQualifiedName~CustomersControllerTests"
 | `GetAll_ReturnsSeededCustomers` | Seeded customers are returned |
 | `Create_ValidRequest_ReturnsCreated` | 201 + id populated |
 | `Create_DuplicateEmail_ReturnsConflict` | 409 on duplicate email |
-| `GetWithAccounts_SeededCustomer_ReturnsAccounts` | Include fires ó Accounts is not empty |
+| `GetWithAccounts_SeededCustomer_ReturnsAccounts` | Include fires ÔøΩ Accounts is not empty |
 | `GetWithAccounts_MissingCustomer_ReturnsNotFound` | 404 for unknown customer |
-| `GetWithActiveAccounts_ReturnsOnlyActiveAccounts` | Filtered Include ó inactive account excluded |
-| `AssignAccount_LinksAccountToCustomer` | FK assignment ó account appears in customer list |
+| `GetWithActiveAccounts_ReturnsOnlyActiveAccounts` | Filtered Include ÔøΩ inactive account excluded |
+| `AssignAccount_LinksAccountToCustomer` | FK assignment ÔøΩ account appears in customer list |
 
 ---
 
 ## Exercises
 
 1. Add `GET /customers/{id}/accounts/savings` using a filtered include for `AccountType == "Savings"`.
-2. Add `GET /customers?includeAccounts=true` ó conditionally apply Include only when requested.
+2. Add `GET /customers?includeAccounts=true` ÔøΩ conditionally apply Include only when requested.
 3. Explore `AsSplitQuery()`: replace the default single-JOIN strategy with two separate queries and compare SQL logs.
 4. Add a `Transaction` entity linked to `BankAccount` and practice `ThenInclude` two levels deep:
    `Customer -> Accounts -> Transactions`.
+
+---
+
+# Lesson 21-C √¢‚Ç¨‚Äù OpenAPI + Scalar UI
+
+> **Branch:** `lesson/21-minimal-api/c-advanced`
+
+## What you will learn
+
+| Topic | .NET | Java |
+|---|---|---|
+| OpenAPI document generation | `Microsoft.AspNetCore.OpenApi` √¢‚Ä†‚Äô `/openapi/v1.json` | springdoc-openapi √¢‚Ä†‚Äô `/v3/api-docs` |
+| Document enrichment | `AddDocumentTransformer` in `AddOpenApi()` | `@OpenAPIDefinition(info = @Info(...))` |
+| Interactive UI | `Scalar.AspNetCore` √¢‚Ä†‚Äô `/scalar/v1` | Springfox Swagger UI / springdoc-openapi |
+| UI customisation | `ScalarTheme`, `DefaultHttpClient` | `springdoc.swagger-ui.*` properties |
+| Contract testing | `GET /openapi/v1.json` + `JsonDocument.Parse` | MockMvc + `jsonPath("$.info.title")` |
+
+## Key changes
+
+```
+Lesson/Lesson.csproj              + Scalar.AspNetCore
+Lesson/Program.cs                 AddOpenApi("v1", AddDocumentTransformer(...))
+								  AddApiVersioning().AddMvc()
+								  MapScalarApiReference(Theme = Purple)
+Lesson.Tests/OpenApiScalarTests.cs  NEW  4 contract tests
+```
+
+## Registration
+
+```csharp
+// Program.cs √¢‚Ç¨‚Äù service registration
+builder.Services.AddOpenApi("v1", options =>
+{
+	options.AddDocumentTransformer((doc, ctx, ct) =>
+	{
+		doc.Info.Title       = "Banking API";
+		doc.Info.Version     = "v1";
+		doc.Info.Description = "ASP.NET Core 10 Banking Curriculum √¢‚Ç¨‚Äù Lesson 21-C";
+		return Task.CompletedTask;
+	});
+});
+
+// Program.cs √¢‚Ç¨‚Äù middleware pipeline
+if (app.Environment.IsDevelopment())
+{
+	app.MapOpenApi();                         // /openapi/v1.json
+
+	app.MapScalarApiReference(options =>
+	{
+		options.Title             = "Banking API √¢‚Ç¨‚Äù Scalar UI";
+		options.Theme             = ScalarTheme.Purple;
+		options.DefaultHttpClient = new(ScalarTarget.CSharp, ScalarClient.HttpClient);
+	});                                       // /scalar/v1
+}
+```
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~OpenApiScalarTests"
+# 4 tests √¢‚Ç¨‚Äù all pass
+```
+
+| Test | What it verifies |
+|---|---|
+| `OpenApiDocument_IsReachableAndValidJson` | `/openapi/v1.json` returns 200 with valid JSON |
+| `OpenApiDocument_HasCorrectTitleAndVersion` | `info.title` and `info.version` match registration |
+| `OpenApiDocument_ContainsAccountsPaths` | `/accounts` route exists in the `paths` section |
+| `ScalarUi_IsReachable` | `/scalar/v1` returns 200 `text/html` |
+
+## Exercises
+
+1. Add a `SecurityScheme` (Bearer JWT) to the OpenAPI document via a second `AddDocumentTransformer`.
+2. Add `[EndpointSummary]` and `[EndpointDescription]` attributes to Minimal API endpoints √¢‚Ç¨‚Äù confirm they appear in `/openapi/v1.json`.
+3. Generate a static OpenAPI file at build time using `dotnet build` + `--project` flag and commit it to source control as an API contract artefact.
+4. Swap `ScalarTheme.Purple` to `ScalarTheme.DeepSpace` √¢‚Ç¨‚Äù observe the live UI change without a redeploy.

@@ -35,37 +35,16 @@ using Lesson.Middleware;
 using Lesson.Options;
 using Lesson.Pipeline;
 using Lesson.Repositories;
-using Microsoft.AspNetCore.Authorization;
-using Lesson.Controllers;
 using Lesson.ScheduledTasks;
 using Lesson.UnitOfWork;
 using Lesson.Validators;
 using FluentValidation;
-using MassTransit;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Quartz;
-using Serilog;
-using Serilog.Context;
-using OpenTelemetry.Resources;
-using OpenTelemetry.Trace;
-using OpenTelemetry.Metrics;
-using Lesson.MinimalApi;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
-
-// ----- 15-B: Serilog -----
-// UseSerilog replaces the built-in Microsoft.Extensions.Logging pipeline.
-// ReadFrom.Configuration picks up the "Serilog" section from appsettings.json:
-//   - MinimumLevel, WriteTo (Console/File/Seq), Enrich.FromLogContext
-// Enrich.FromLogContext picks up properties pushed via LogContext.PushProperty (correlation ID).
-// Java parallel: Logback + logback.xml configured via application.properties
-Log.Logger = new LoggerConfiguration()
-    .ReadFrom.Configuration(builder.Configuration)
-    .Enrich.FromLogContext()
-    .CreateLogger();
-
-builder.Host.UseSerilog();
 
 // ----- Options carried from Lesson 02 -----
 builder.Services
@@ -146,31 +125,7 @@ builder.Services.AddTransient(
     typeof(IPipelineBehavior<,>),
     typeof(ValidationBehavior<,>));
 
-// ----- 18-B: Logging pipeline behaviour -----
-// LoggingBehavior wraps every handler and logs the request name and elapsed time.
-// Registered AFTER ValidationBehavior so execution order is:
-//   LoggingBehavior (outermost) ? ValidationBehavior ? Handler
-// Java parallel: Spring AOP @Around advice ordering via @Order
-builder.Services.AddTransient(
-    typeof(IPipelineBehavior<,>),
-    typeof(LoggingBehavior<,>));
-// TransactionBehavior — inner; only fires for ICommand<T> requests
-builder.Services.AddTransient(
-    typeof(IPipelineBehavior<,>),
-    typeof(TransactionBehavior<,>));
-
-// ----- 19-B: DDD aggregate repository -----
-// IAggregateRepository abstracts EF Core from the domain layer.
-// Java parallel: Spring Data @Repository / Axon EventSourcingRepository
-builder.Services.AddScoped<Lesson.Domain.IAggregateRepository, Lesson.Infrastructure.EfAggregateRepository>();
-
-// ----- 19-C: AggregateUnitOfWork — post-commit domain event dispatch -----
-// AggregateUnitOfWork wraps SaveChangesAsync + domain-event dispatch in one step.
-// Translates DbUpdateConcurrencyException into DomainConcurrencyException (no EF leak).
-// Java parallel: @TransactionalEventListener(phase = AFTER_COMMIT)
-builder.Services.AddScoped<Lesson.Infrastructure.AggregateUnitOfWork>();
-
-// ----- 08-A + audit subscriber -----
+// ----- 08-A: Domain event bus + audit subscriber -----
 builder.Services.AddSingleton<Lesson.Events.DomainEventBus>();
 builder.Services.AddSingleton<Lesson.Subscribers.PaymentAuditSubscriber>();
 
@@ -179,65 +134,7 @@ builder.Services.AddSingleton<Lesson.Subscribers.PaymentAuditSubscriber>();
 // In production: .PersistKeysToAzureBlobStorage(...) + .ProtectKeysWithAzureKeyVault(...)
 builder.Services.AddDataProtection();
 
-// ----- 13-A: JWT Authentication -----
-builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
-var jwtOpts = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
-
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme    = Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
-    {
-        ValidateIssuer           = true,
-        ValidateAudience         = true,
-        ValidateLifetime         = true,
-        ValidateIssuerSigningKey = true,
-        ValidIssuer              = jwtOpts.Issuer,
-        ValidAudience            = jwtOpts.Audience,
-        IssuerSigningKey         = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
-                                       System.Text.Encoding.UTF8.GetBytes(jwtOpts.SecretKey)),
-    };
-});
-builder.Services.AddAuthorization();
-
-// ----- 13-B: Role/claim-based authorization -----
-builder.Services.AddAuthorization(options =>
-    options.AddPolicy("AccountOwner", policy =>
-        policy.Requirements.Add(new AccountOwnerRequirement())));
-builder.Services.AddScoped<IAuthorizationHandler, AccountOwnerHandler>();
-
-// ----- 13-C: Refresh token store (Singleton — lives for app lifetime) -----
-builder.Services.AddSingleton<TokenStore>();
-
-// ----- 14-A: IMemoryCache -----
-// AddMemoryCache registers IMemoryCache as a Singleton.
-// Java parallel: @EnableCaching + Spring CacheManager
-builder.Services.AddMemoryCache();
-
-// ----- 14-B: IDistributedCache -----
-// In Development: in-process memory (single-node, no Redis required).
-// In Production:  swap to AddStackExchangeRedisCache — the interface stays the same.
-// Java parallel: Spring RedisCacheManager / CaffeineCacheManager — swap via @Bean
-if (builder.Environment.IsDevelopment())
-    builder.Services.AddDistributedMemoryCache();
-// Uncomment for real Redis:
-// builder.Services.AddStackExchangeRedisCache(o =>
-//     o.Configuration = builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379");
-
-// ----- 14-C: Output caching (.NET 7+) -----
-// AddOutputCache registers the output cache service and its policy registry.
-// Java parallel: @EnableCaching + CaffeineCacheManager (server-side response cache)
-builder.Services.AddOutputCache(opts =>
-{
-    // "Lock" policy — serialises concurrent requests for the same cache key,
-    // preventing cache stampedes (dog-piling).
-    opts.AddPolicy("Lock", pb => pb.SetLocking(true));
-});
-builder.Services.AddResponseCaching();      // needed for [ResponseCache] HTTP headers
+// ----- 08-C: Channel<T> outbox queue + background consumer -----
 builder.Services.AddSingleton<OutboxChannel>();
 builder.Services.AddSingleton<OutboxConsumerService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<OutboxConsumerService>());
@@ -271,80 +168,37 @@ builder.Services.AddQuartz(q =>
 builder.Services.AddQuartzHostedService(opts =>
     opts.WaitForJobsToComplete = true);      // graceful shutdown waits for running jobs
 
-// ----- 20-A: gRPC — adds HTTP/2 + Protobuf service infrastructure -----
-// Java parallel: @EnableGrpc / spring-grpc starter
-builder.Services.AddGrpc();
-
-// ----- 21-B: API Versioning via URL segment -----
-// AddApiVersioning + AddMvc() registers versioning for both controllers and minimal APIs.
-// Java parallel: spring-doc API versioning / @ApiVersion
-builder.Services.AddApiVersioning(options =>
-{
-    options.DefaultApiVersion = new Asp.Versioning.ApiVersion(1);
-    options.AssumeDefaultVersionWhenUnspecified = true;
-    options.ReportApiVersions = true;
-}).AddMvc();
-
 builder.Services.AddControllers(options =>
 {
     // ----- 06-B: Register action filters globally -----
     options.Filters.Add<CorrelationIdFilter>();
 });
-// ----- 15-B: IHttpContextAccessor — needed by SerilogDemoController -----
-// AddHttpContextAccessor registers IHttpContextAccessor as a Singleton.
-// Java parallel: @RequestScope beans / HttpServletRequest injection
-builder.Services.AddHttpContextAccessor();
 
-// ----- 15-C: OpenTelemetry — traces + metrics -----
-// AddOpenTelemetry wires the OTel SDK into the ASP.NET Core host.
-//   WithTracing   — captures distributed traces (spans) for HTTP and EF Core.
-//   WithMetrics   — captures process / HTTP / runtime metrics.
-// Exporter: Console is used here for local visibility; swap to OTLP for Jaeger/Zipkin.
-// Java parallel: Micrometer + Brave/OpenTelemetry SDK; io.opentelemetry:opentelemetry-sdk
-builder.Services.AddOpenTelemetry()
-    .ConfigureResource(r => r.AddService("BankingApi"))
-    .WithTracing(tracing => tracing
-        .AddSource("BankingApi")                    // OtelDemoController custom spans
-        .AddAspNetCoreInstrumentation()
-        .AddHttpClientInstrumentation()         // spans for outbound HttpClient calls
-        .AddEntityFrameworkCoreInstrumentation()// spans for EF Core DB commands
-        .AddConsoleExporter())                  // prints spans to the console
-    .WithMetrics(metrics => metrics
-        .AddAspNetCoreInstrumentation()         // http.server.* metrics
-        .AddHttpClientInstrumentation()         // http.client.* metrics
-        .AddConsoleExporter());
-
-// ----- 15-C: Health checks -----
-// AddHealthChecks returns a builder that lets you chain specific checks.
-// Java parallel: Spring Boot Actuator /actuator/health + HealthIndicator
-builder.Services.AddHealthChecks()
-    .AddDbContextCheck<BankingDbContext>("database"); // pings the DB via EF Core
-
-builder.Services.AddOpenApi();
-
-// ----- 17-A: MassTransit — in-memory transport -----
-// MassTransit is an open-source message-bus abstraction for .NET.
-// UsingInMemory() wires a fully functional in-process bus — no broker required.
-// Swap to UsingRabbitMq() / UsingKafka() without changing consumers or publishers.
+// ----- 21-B: API versioning -----
+// Registers the 'apiVersion' route constraint and the versioning infrastructure.
+// Java parallel: spring-web @RequestMapping versioning / springdoc version grouping
+builder.Services.AddApiVersioning(options =>
+{
+    options.DefaultApiVersion        = new Asp.Versioning.ApiVersion(1);
+    options.AssumeDefaultVersionWhenUnspecified = true;
+    options.ReportApiVersions        = true;
+}).AddMvc();
+// ----- 21-C: OpenAPI document + Scalar UI -----
+// AddOpenApi() generates an OpenAPI 3.x JSON document at /openapi/v1.json.
+// We enrich it with title, version, and a description here.
+// Scalar replaces Swagger UI: modern, dark-mode, try-it-out, multiserver.
 //
 // Java parallel:
-//   Spring ApplicationEventPublisher (in-process)  ?  IPublishEndpoint (in-memory)
-//   @RabbitListener                                ?  IConsumer<T>
-//   RabbitTemplate.convertAndSend()               ?  IPublishEndpoint.Publish()
-builder.Services.AddMassTransit(x =>
+//   springdoc-openapi  @OpenAPIDefinition(info = @Info(title="..."))
+//   Swagger UI   ?  Scalar (/scalar)
+builder.Services.AddOpenApi("v1", options =>
 {
-    // Register all consumers in this assembly automatically
-    x.AddConsumers(typeof(Program).Assembly);
-
-    // 17-C: Register the transfer saga with in-memory repository
-    x.AddSagaStateMachine<
-        Lesson.Messaging.Sagas.TransferStateMachine,
-        Lesson.Messaging.Sagas.TransferSagaState>()
-        .InMemoryRepository();
-
-    x.UsingInMemory((ctx, cfg) =>
+    options.AddDocumentTransformer((doc, ctx, ct) =>
     {
-        cfg.ConfigureEndpoints(ctx);
+        doc.Info.Title       = "Banking API";
+        doc.Info.Version     = "v1";
+        doc.Info.Description = "ASP.NET Core 10 Banking Curriculum — Lesson 21-C";
+        return Task.CompletedTask;
     });
 });
 
@@ -361,42 +215,34 @@ using (var scope = app.Services.CreateScope())
 }
 
 if (app.Environment.IsDevelopment())
+{
+    // /openapi/v1.json  — raw OpenAPI document (machine-readable)
     app.MapOpenApi();
+
+    // /scalar/v1  — Scalar interactive UI (replaces Swagger UI)
+    // Java parallel: springdoc-openapi swagger-ui.path=/swagger-ui.html
+    app.MapScalarApiReference(options =>
+    {
+        options.Title         = "Banking API — Scalar UI";
+        options.Theme         = ScalarTheme.Purple;
+        options.DefaultHttpClient = new(ScalarTarget.CSharp, ScalarClient.HttpClient);
+    });
+}
 
 // ----- 06-C: Minimal-API endpoint protected by IEndpointFilter -----
 app.MapGet("/minimal/secure", () => Results.Ok(new { secret = "you have the key!" }))
    .AddEndpointFilter(new ApiKeyEndpointFilter("lesson06"));
 
 // ----- 06-A: Middleware pipeline — ORDER MATTERS -----
+// ResponseHeaderMiddleware wraps everything below it.
 app.UseMiddleware<ResponseHeaderMiddleware>();
-// ----- 15-B: Serilog request logging -----
-// UseSerilogRequestLogging replaces the verbose ASP.NET hosting request logs with a
-// single structured entry per request (method, path, status, elapsed).
-// It must come BEFORE UseRouting/auth/controllers to capture the full request.
-// Java parallel: logback-access / spring-boot-starter-actuator access-log
-app.UseSerilogRequestLogging();
+// RequestLoggingMiddleware logs all requests that pass through.
 app.UseMiddleware<RequestLoggingMiddleware>();
 
 // ----- 07-B: Global exception handler (must come early so it catches all unhandled errors) -----
 app.UseExceptionHandler();
 
 app.UseHttpsRedirection();
-// ----- 13-A: Auth middleware must come AFTER exception handler, BEFORE MapControllers -----
-app.UseAuthentication();
-// ----- 14-C: Output/response caching middleware -----
-app.UseResponseCaching();
-app.UseOutputCache();
 app.UseAuthorization();
 app.MapControllers();
-// ----- 20-A: gRPC endpoint — served on HTTP/2 alongside REST (HTTP/1.1) -----
-// Java parallel: @GrpcService class registration picked up by spring-grpc
-app.MapGrpcService<Lesson.Services.GrpcBankingService>();
-// ----- 21-A: Minimal API endpoints -----
-// Routes defined via extension method; no controller class needed.
-// Java parallel: @GetMapping / @PostMapping lambdas in Spring functional routing
-app.MapMinimalAccounts();
-// ----- 15-C: Health check endpoint -----
-// /health — returns 200 Healthy / 503 Unhealthy + JSON payload.
-// Java parallel: GET /actuator/health
-app.MapHealthChecks("/health");
 app.Run();
