@@ -1,4 +1,162 @@
-# Lesson 15-B — Serilog: Sinks, Enrichers, and Correlation ID
+# Lesson 15-C — OpenTelemetry: Traces, Metrics, ActivitySource, and Health Checks
+
+> **Branch:** `lesson/15-logging/c-advanced`
+> **Prerequisites:** Lesson 15-B (Serilog)
+
+---
+
+## What you will learn
+
+| Topic | .NET OpenTelemetry | Java (Micrometer / OTel SDK) |
+|---|---|---|
+| SDK wiring | `AddOpenTelemetry()` in `Program.cs` | `io.opentelemetry:opentelemetry-spring-boot-starter` |
+| Custom spans | `ActivitySource` + `StartActivity(name)` | `Tracer.spanBuilder(name).startSpan()` |
+| Span attributes | `activity.SetTag(key, value)` | `span.setAttribute(key, value)` |
+| Span events | `activity.AddEvent(new ActivityEvent(...))` | `span.addEvent(name)` |
+| Mark span failed | `activity.SetStatus(Error, desc)` | `span.setStatus(StatusCode.ERROR, desc)` |
+| HTTP instrumentation | `AddAspNetCoreInstrumentation()` | `OpenTelemetryMeterRegistry` / micrometer-tracing |
+| DB instrumentation | `AddEntityFrameworkCoreInstrumentation()` | `opentelemetry-jdbc` |
+| Metrics | `WithMetrics(...)` + console exporter | `MeterRegistry` + `ConsoleMeterRegistry` |
+| Exporter | Console (dev) / OTLP (Jaeger/Zipkin in prod) | `JaegerSpanExporter` / OTLP |
+| Health checks | `AddHealthChecks().AddDbContextCheck<T>()` | Spring Boot Actuator `HealthIndicator` |
+| Health endpoint | `app.MapHealthChecks("/health")` | `/actuator/health` |
+
+---
+
+## 1. Wiring OpenTelemetry
+
+```csharp
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(r => r.AddService("BankingApi"))
+    .WithTracing(tracing => tracing
+        .AddSource("BankingApi")                    // your custom ActivitySource name
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddEntityFrameworkCoreInstrumentation()
+        .AddConsoleExporter())                       // swap to .AddOtlpExporter() for Jaeger
+    .WithMetrics(metrics => metrics
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddConsoleExporter());
+```
+
+**Java parallel:**
+```java
+@Bean OpenTelemetrySdkAutoConfiguration ...  // or opentelemetry-spring-boot-starter
+```
+
+---
+
+## 2. Custom spans with ActivitySource
+
+```csharp
+// Declare once per class (static field)
+private static readonly ActivitySource Source = new("BankingApi");
+
+// Inside a method:
+using var activity = Source.StartActivity("FetchAccount");
+activity?.SetTag("account.id", id);
+activity?.AddEvent(new ActivityEvent("db.query.started"));
+
+// Mark as failed
+activity?.SetStatus(ActivityStatusCode.Error, "account not found");
+```
+
+The span automatically becomes a **child** of the current HTTP request span. In Jaeger you see:
+```
+[HTTP GET /otel-demo/accounts/1]
+  ??? [FetchAccount]  (account.id=1)
+        ??? [main]    (EF Core SQLite query)
+```
+
+**Java parallel:**
+```java
+Span span = tracer.spanBuilder("FetchAccount").startSpan();
+try (Scope scope = span.makeCurrent()) {
+    span.setAttribute("account.id", id);
+    // ...
+} finally {
+    span.end();
+}
+```
+
+---
+
+## 3. Multi-span traces
+
+```csharp
+using var transferActivity = Source.StartActivity("Transfer");
+using (var debitActivity   = Source.StartActivity("DebitSource"))  { ... }
+using (var creditActivity  = Source.StartActivity("CreditDestination")) { ... }
+```
+
+This produces a tree:
+```
+[Transfer]
+  ??? [DebitSource]   ? EF Core child span
+  ??? [CreditDestination] ? EF Core child span
+```
+
+---
+
+## 4. Health checks
+
+```csharp
+// Registration
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<BankingDbContext>("database");
+
+// Endpoint
+app.MapHealthChecks("/health");
+```
+
+`GET /health` returns:
+```json
+{ "status": "Healthy", "results": { "database": { "status": "Healthy" } } }
+```
+
+**Java parallel:**
+```java
+@Component
+class DatabaseHealthIndicator implements HealthIndicator {
+    public Health health() { ... }
+}
+// ? GET /actuator/health
+```
+
+---
+
+## Project Structure (new / changed files)
+
+```
+Lesson/
+  Controllers/
+    OtelDemoController.cs  NEW  GET /otel-demo/accounts/{id},
+                                POST /otel-demo/transfer (multi-span trace)
+  Program.cs               MOD  AddOpenTelemetry(), AddHealthChecks(),
+                                MapHealthChecks("/health"), AddSource("BankingApi")
+Lesson.Tests/
+  OtelDemoTests.cs         NEW  5 integration tests (including /health check)
+```
+
+---
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~OtelDemoTests"
+# 5 tests — all pass
+# Console output shows real spans with TraceId / SpanId / Tags
+```
+
+---
+
+## Exercises
+
+1. Run Jaeger locally (`docker run -d -p 16686:16686 -p 4317:4317 jaegertracing/all-in-one`) and swap `.AddConsoleExporter()` for `.AddOtlpExporter()` — observe the multi-span transfer trace in the UI.
+2. Add a `Meter("BankingApi")` static field to `OtelDemoController` and create a `Counter` that increments on each successful transfer — verify it appears in the console metric output.
+3. Add a second health check for a dummy external dependency using `AddCheck("exchange-rate-api", () => HealthCheckResult.Healthy("API reachable"))` and verify `/health` shows both.
+
 
 > **Branch:** `lesson/15-logging/b-intermediate`
 > **Prerequisites:** Lesson 15-A (ILogger&lt;T&gt; basics)

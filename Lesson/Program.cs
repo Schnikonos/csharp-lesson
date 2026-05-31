@@ -46,6 +46,9 @@ using Microsoft.EntityFrameworkCore;
 using Quartz;
 using Serilog;
 using Serilog.Context;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using OpenTelemetry.Metrics;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -251,6 +254,32 @@ builder.Services.AddControllers(options =>
 // AddHttpContextAccessor registers IHttpContextAccessor as a Singleton.
 // Java parallel: @RequestScope beans / HttpServletRequest injection
 builder.Services.AddHttpContextAccessor();
+
+// ----- 15-C: OpenTelemetry — traces + metrics -----
+// AddOpenTelemetry wires the OTel SDK into the ASP.NET Core host.
+//   WithTracing   — captures distributed traces (spans) for HTTP and EF Core.
+//   WithMetrics   — captures process / HTTP / runtime metrics.
+// Exporter: Console is used here for local visibility; swap to OTLP for Jaeger/Zipkin.
+// Java parallel: Micrometer + Brave/OpenTelemetry SDK; io.opentelemetry:opentelemetry-sdk
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(r => r.AddService("BankingApi"))
+    .WithTracing(tracing => tracing
+        .AddSource("BankingApi")                    // OtelDemoController custom spans
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()         // spans for outbound HttpClient calls
+        .AddEntityFrameworkCoreInstrumentation()// spans for EF Core DB commands
+        .AddConsoleExporter())                  // prints spans to the console
+    .WithMetrics(metrics => metrics
+        .AddAspNetCoreInstrumentation()         // http.server.* metrics
+        .AddHttpClientInstrumentation()         // http.client.* metrics
+        .AddConsoleExporter());
+
+// ----- 15-C: Health checks -----
+// AddHealthChecks returns a builder that lets you chain specific checks.
+// Java parallel: Spring Boot Actuator /actuator/health + HealthIndicator
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<BankingDbContext>("database"); // pings the DB via EF Core
+
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
@@ -293,4 +322,8 @@ app.UseResponseCaching();
 app.UseOutputCache();
 app.UseAuthorization();
 app.MapControllers();
+// ----- 15-C: Health check endpoint -----
+// /health — returns 200 Healthy / 503 Unhealthy + JSON payload.
+// Java parallel: GET /actuator/health
+app.MapHealthChecks("/health");
 app.Run();
