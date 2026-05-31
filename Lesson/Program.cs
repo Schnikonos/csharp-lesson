@@ -28,6 +28,8 @@ using Lesson.Configuration;
 using Lesson.Data;
 using Lesson.Filters;
 using Lesson.Middleware;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
 using Lesson.Options;
 using Lesson.Repositories;
 using Lesson.UnitOfWork;
@@ -106,6 +108,56 @@ builder.Services.AddControllers(options =>
 });
 builder.Services.AddOpenApi();
 
+// ??? 06-C Extended: Rate Limiting ????????????????????????????????????????????
+// ASP.NET Core 7+ ships rate limiting middleware in-box — no extra package.
+//
+// Three policies demonstrate the main algorithms:
+//   fixed   — N requests per window, hard reset at window boundary
+//   sliding — N requests per window, window slides per sub-window
+//   token   — token-bucket: replenish T tokens every P period
+//
+// Java parallel:
+//   Resilience4j RateLimiter  /  Bucket4j  /  Spring Cloud Gateway filters
+//   RateLimiterConfig.custom().limitForPeriod(10).limitRefreshPeriod(...)...
+// ?????????????????????????????????????????????????????????????????????????????
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    // Fixed window: max 10 requests per 10-second window per IP.
+    // Java parallel: Bucket4j Bandwidth.simple(10, Duration.ofSeconds(10))
+    options.AddFixedWindowLimiter("fixed", o =>
+    {
+        o.Window              = TimeSpan.FromSeconds(10);
+        o.PermitLimit         = 10;
+        o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        o.QueueLimit          = 0;
+    });
+
+    // Sliding window: smoother than fixed — avoids the boundary burst.
+    // Java parallel: Bucket4j sliding-window strategy
+    options.AddSlidingWindowLimiter("sliding", o =>
+    {
+        o.Window               = TimeSpan.FromSeconds(10);
+        o.PermitLimit          = 10;
+        o.SegmentsPerWindow    = 5;
+        o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        o.QueueLimit           = 0;
+    });
+
+    // Token bucket: burst-friendly; tokens refill at a steady rate.
+    // Java parallel: Resilience4j RateLimiter with SemaphoreBased strategy
+    options.AddTokenBucketLimiter("token", o =>
+    {
+        o.TokenLimit          = 20;
+        o.ReplenishmentPeriod = TimeSpan.FromSeconds(5);
+        o.TokensPerPeriod     = 5;
+        o.AutoReplenishment   = true;
+        o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        o.QueueLimit          = 0;
+    });
+});
+
 var app = builder.Build();
 
 // ----- Apply pending EF Core migrations automatically at startup -----
@@ -131,6 +183,9 @@ app.UseMiddleware<ResponseHeaderMiddleware>();
 // RequestLoggingMiddleware logs all requests that pass through.
 app.UseMiddleware<RequestLoggingMiddleware>();
 
+// Rate limiting middleware must be placed before routing/endpoints.
+// Java parallel: Filter chain order in spring.security / servlet filter chain
+app.UseRateLimiter();
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
