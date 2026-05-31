@@ -129,7 +129,99 @@ dotnet test --filter "FullyQualifiedName~CsvFileTests"
 
 ---
 
-# Lesson 10-C — Template Engine (Scriban)
+# Lesson 26-A — Static Files, SPA, CORS & HTTPS
+
+> **Branch:** `lesson/26-frontend-security/a-basic`
+> **Prerequisites:** Lesson 10-C (templating) or any Lesson with a working API
+
+This lesson teaches how to serve a frontend (static files, SPA) and lock down cross-origin
+requests and transport security — the minimum "production checklist" for any web API.
+
+## What you will learn
+
+| Topic | C# .NET | Java parallel |
+|---|---|---|
+| Static file serving | `UseStaticFiles()` + `wwwroot/` | `spring.web.resources.static-locations` + `ResourceHttpRequestHandler` |
+| Default document | `UseDefaultFiles()` rewrites `/` ? `/index.html` | `ResourceHttpRequestHandler` welcome-file list |
+| SPA fallback | `MapFallbackToFile("index.html")` | Custom `SpaFallbackRequestMatcher` / catch-all `@RequestMapping` |
+| CORS policy | `AddCors` + `AllowSpecificOrigins` policy | `@CrossOrigin` / `WebMvcConfigurer.addCorsMappings()` |
+| CORS preflight | Automatic `OPTIONS` handling with `Access-Control-Allow-*` headers | Spring Security `CorsFilter` |
+| HTTPS redirect | `UseHttpsRedirection()` | `http.requiresChannel().anyRequest().requiresSecure()` |
+| HSTS | `UseHsts()` (production only) | `http.headers().httpStrictTransportSecurity()` |
+
+## Middleware order (critical)
+
+```
+UseHttpsRedirection
+UseHsts              (prod only)
+UseCors              ? must precede UseStaticFiles and MapControllers
+UseDefaultFiles      ? must precede UseStaticFiles
+UseStaticFiles
+UseAuthorization
+MapControllers
+MapFallbackToFile    ? must come AFTER MapControllers
+```
+
+## Key concepts
+
+### CORS policy
+
+```csharp
+// Registration (services)
+builder.Services.AddCors(options =>
+    options.AddPolicy("AllowSpecificOrigins", policy =>
+        policy.WithOrigins("http://localhost:3000")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials()));
+
+// Activation (middleware, before static files)
+app.UseCors("AllowSpecificOrigins");
+```
+
+### SPA fallback
+
+```csharp
+// After MapControllers so API routes take priority
+app.MapFallbackToFile("index.html");
+```
+Unknown paths (e.g. `/accounts/dashboard`) return `200 + index.html` so the SPA router
+handles client-side navigation — not a 404.
+
+### HSTS (HTTP Strict Transport Security)
+
+Only active outside Development. Browsers will refuse to connect over HTTP for the
+`max-age` duration after the first HTTPS response.
+
+## Project structure (new / changed files)
+
+```
+Lesson/
+  wwwroot/
+    index.html          NEW  SPA shell — served by UseDefaultFiles + UseStaticFiles
+    css/app.css         NEW  static stylesheet
+    js/app.js           NEW  static script
+  Program.cs            MOD  AddCors, UseCors, UseDefaultFiles, UseStaticFiles,
+                             UseHsts, MapFallbackToFile
+Lesson.Tests/
+  StaticFilesCorsSpaTests.cs   NEW  8 integration tests
+```
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~StaticFilesCorsSpaTests"
+# 8 tests — all pass
+```
+
+## Exercises
+
+1. Add a second CORS policy `"AllowAll"` with `AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()` and apply it only to a `/api/public/**` group.
+2. Change `MapFallbackToFile` to return `404` for paths starting with `/api/` to prevent API misroutes from silently returning HTML.
+3. Add a `Cache-Control: public, max-age=31536000, immutable` header to versioned static assets (e.g. `*.min.js`) using `StaticFileOptions`.
+4. Enable HSTS in Development by moving `UseHsts` outside the `if (!IsDevelopment())` guard — observe the browser behaviour and understand why it defaults to prod-only.
+
+---
 
 > **Branch:** `lesson/10-file-handling/c-advanced`
 > **Prerequisites:** Lesson 10-B (file I/O, CsvHelper)

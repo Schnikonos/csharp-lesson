@@ -171,6 +171,19 @@ builder.Services.AddQuartz(q =>
 builder.Services.AddQuartzHostedService(opts =>
     opts.WaitForJobsToComplete = true);      // graceful shutdown waits for running jobs
 
+// ----- 26-A: CORS -----
+// AddCors registers the CORS middleware services.
+// AllowSpecificOrigins policy mirrors Spring's @CrossOrigin / WebMvcConfigurer.addCorsMappings().
+// The named policy is referenced in app.UseCors() and can be applied per-endpoint with [EnableCors].
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowSpecificOrigins", policy =>
+        policy.WithOrigins("http://localhost:3000", "https://app.sandboxbank.local")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials());
+});
+
 builder.Services.AddControllers(options =>
 {
     // ----- 06-B: Register action filters globally -----
@@ -207,6 +220,33 @@ app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseExceptionHandler();
 
 app.UseHttpsRedirection();
+
+// ----- 26-A: HSTS (HTTP Strict Transport Security) -----
+// Tells browsers to always use HTTPS for this domain for the specified duration.
+// Java parallel: Spring Security http.headers().httpStrictTransportSecurity()
+// Only enable in production — development certificates are not trusted.
+if (!app.Environment.IsDevelopment())
+    app.UseHsts();
+
+// ----- 26-A: CORS -----
+// Must come BEFORE UseStaticFiles / MapControllers so preflight OPTIONS requests are handled.
+// Java parallel: Spring Security CorsFilter / WebMvcConfigurer.addCorsMappings()
+app.UseCors("AllowSpecificOrigins");
+
+// ----- 26-A: Static files (wwwroot) -----
+// UseDefaultFiles rewrites "/" ? "/index.html" (must come BEFORE UseStaticFiles).
+// UseStaticFiles serves wwwroot/** with correct Content-Type and cache headers.
+// Java parallel: spring.web.resources.static-locations + ResourceHttpRequestHandler
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.UseAuthorization();
 app.MapControllers();
+
+// ----- 26-A: SPA fallback -----
+// Any route not matched by a controller falls back to index.html so the SPA router takes over.
+// Java parallel: SpaFallbackRequestMatcher / @RequestMapping("/{path:[a-z].*}")
+// Must be registered AFTER MapControllers so API routes are matched first.
+app.MapFallbackToFile("index.html");
+
 app.Run();

@@ -1,0 +1,8 @@
+/* Sandbox Bank — minimal stylesheet served from wwwroot/css */
+body {
+  font-family: sans-serif;
+  max-width: 800px;
+  margin: 2rem auto;
+  color: #333;
+}
+h1 { color: #1a56a0; }
