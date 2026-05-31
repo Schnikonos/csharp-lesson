@@ -1,3 +1,79 @@
+# Lesson 22 — Result Pattern & Functional Error Handling
+
+> **Branch family:** `lesson/22-result-pattern/{a-basic,b-intermediate}`
+
+## 22-A — ErrorOr: replacing exceptions with typed results
+
+```csharp
+// Service returns ErrorOr<T> — no throw
+public async Task<ErrorOr<AccountResultDto>> GetByIdAsync(int id, CancellationToken ct)
+{
+    var a = await db.BankAccounts.FindAsync([id], ct);
+    if (a is null) return Error.NotFound("Account.NotFound", $"Account {id} not found");
+    return new AccountResultDto(a.Id, a.AccountNumber, a.OwnerName, a.Balance);
+}
+
+// Controller pattern-matches on IsError
+var result = await svc.GetByIdAsync(id, ct);
+return result.Match<IActionResult>(
+    dto    => Ok(dto),
+    errors => MapErrors(errors));   // NotFound ? 404, Validation ? 400, Conflict ? 409
+```
+
+**Java parallel:**  
+`Vavr Either<AppError, T>` ? `ErrorOr<T>`.  
+`Either.fold(left ? ResponseEntity.notFound(), right ? ResponseEntity.ok())` ? `.Match(...)`.
+
+## 22-B — Railway-Oriented Pipeline + FluentValidation integration
+
+```csharp
+// Multi-step pipeline — each step short-circuits on error
+public async Task<ErrorOr<AccountResultDto>> DepositAsync(int id, decimal amount, CancellationToken ct)
+{
+    // Step 1: FluentValidation ? ErrorOr.Validation on failure
+    var validation = await validator.ValidateAsync(new DepositRequest(id, amount), ct);
+    if (!validation.IsValid)
+        return validation.Errors
+            .Select(e => Error.Validation(e.PropertyName, e.ErrorMessage))
+            .ToList();
+
+    // Step 2: load account — returns Error.NotFound if missing
+    var entity = await db.BankAccounts.FindAsync([id], ct);
+    if (entity is null) return AccountResultService.Errors.NotFound(id);
+
+    // Step 3: business rule
+    if (amount <= 0) return Error.Validation("Deposit.Amount", "Deposit amount must be positive");
+
+    entity.Balance += amount;
+    await db.SaveChangesAsync(ct);
+    return new AccountResultDto(entity.Id, entity.AccountNumber, entity.OwnerName, entity.Balance);
+}
+
+// Re-usable extension: ErrorOr<T> ? IActionResult in one line
+public static IActionResult ToActionResult<T>(this ErrorOr<T> result, ControllerBase ctrl) =>
+    result.Match<IActionResult>(
+        value  => ctrl.Ok(value),
+        errors => errors[0].Type switch
+        {
+            ErrorType.NotFound   => ctrl.NotFound(...),
+            ErrorType.Validation => ctrl.BadRequest(...),
+            ErrorType.Conflict   => ctrl.Conflict(...),
+            _                    => ctrl.Problem(...),
+        });
+```
+
+**Java parallel:**  
+`Optional.flatMap` / `Vavr Either.flatMap` ? chained guard checks.  
+Bean Validation ? `FluentValidation` validator called inside the pipeline step.
+
+## Tests
+```bash
+dotnet test --filter "FullyQualifiedName~ResultPatternBasicTests"   # 4 tests (22-A)
+dotnet test --filter "FullyQualifiedName~ResultPipelineTests"       # 4 tests (22-B)
+```
+
+---
+
 # Lesson 20 — gRPC
 
 > **Branch family:** `lesson/20-grpc/{a-basic,b-intermediate}`
