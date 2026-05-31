@@ -1,0 +1,14 @@
+BANK STATEMENT
+==============
+Account : {{ account_number }}
+Owner   : {{ customer_name }}
+Period  : {{ period_start }} – {{ period_end }}
+
+Transactions
+------------
+{{- for tx in transactions }}
+{{ tx.date }}  {{ tx.type | string.pad_right 10 }}  {{ tx.currency }} {{ tx.amount | math.format "0.00" | string.pad_left 12 }}
+{{- end }}
+
+Opening balance : {{ currency }} {{ opening_balance | math.format "0.00" }}
+Closing balance : {{ currency }} {{ closing_balance | math.format "0.00" }}

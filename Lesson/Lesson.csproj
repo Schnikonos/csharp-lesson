@@ -10,6 +10,14 @@
     <UserSecretsId>lesson-02c-banking-app</UserSecretsId>
   </PropertyGroup>
 
+  <!-- Copy Scriban template files to output so they are accessible via AppContext.BaseDirectory -->
+  <ItemGroup>
+    <Content Include="Templating\Templates\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Templating\Templates\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Content>
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="CsvHelper" Version="33.0.1" />
     <PackageReference Include="FluentValidation.AspNetCore" Version="11.3.0" />
@@ -22,6 +30,7 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.8" />
     <PackageReference Include="Quartz.AspNetCore" Version="3.18.1" />
     <PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.18.1" />
+    <PackageReference Include="Scriban" Version="7.2.3" />
   </ItemGroup>
 
 </Project>

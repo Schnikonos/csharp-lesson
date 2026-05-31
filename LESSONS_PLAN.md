@@ -142,15 +142,16 @@ Each part-branch is created **off the previous part** (`a → b → c`), so `git
 
 ---
 
-### Lesson 10 — File Handling
-**Branches:** `lesson/10-file-handling/a-basic` · `b-intermediate`  *(no part C)*
+### Lesson 10 — File Handling & Templating
+**Branches:** `lesson/10-file-handling/a-basic` · `b-intermediate` · `c-advanced`
 
 | Part | Content |
 |------|---------|
 | **A - Basic** | `File`, `Directory` static helpers; `StreamReader`/`StreamWriter`; `using` declarations; `FileStream`; reading/writing transaction exports as plain text |
 | **B - Intermediate** | `IFormFile` upload endpoint (import transactions from CSV); `CsvHelper` library; `JsonSerializer` (`System.Text.Json`) read/write; async file IO with `await using` |
+| **C - Advanced** | **Scriban template engine** (`ITemplateEngine` / `ScribanTemplateEngine`); `{{ variable }}` / `{{ for }}` / `{{ if }}` syntax; PascalCase→snake_case model binding; generating transaction emails, bank statements, and monthly reports from named template files; `RenderStringAsync` for inline templates |
 
-**Java parallels:** `BufferedReader`/`BufferedWriter` → `StreamReader`/`StreamWriter`; `MultipartFile` → `IFormFile`.
+**Java parallels:** `BufferedReader`/`BufferedWriter` → `StreamReader`/`StreamWriter`; `MultipartFile` → `IFormFile`; Thymeleaf / FreeMarker / Jinja2 → Scriban `ITemplateEngine`.
 
 ---
 
@@ -216,6 +217,19 @@ Each part-branch is created **off the previous part** (`a → b → c`), so `git
 | **C - Advanced** | **OpenTelemetry** — traces, metrics, logs; `ActivitySource`; exporting to Jaeger/Zipkin; health checks (`IHealthCheck`, `/health` endpoint) |
 
 **Java parallels:** SLF4J/Logback → `ILogger<T>` / Serilog; MDC (Mapped Diagnostic Context) → Serilog `LogContext.PushProperty`; Micrometer → OpenTelemetry .NET.
+
+---
+
+### Lesson 26 — Frontend Serving & Web Security
+**Branches:** `lesson/26-frontend-security/a-basic` · `b-intermediate` · `c-advanced`
+
+| Part | Content |
+|------|---------|
+| **A - Basic** | `UseStaticFiles` / `wwwroot`; `UseDefaultFiles`; `MapFallbackToFile` for SPA; CORS (`AddCors`, `AllowSpecificOrigins`, preflight); HTTPS redirect + HSTS |
+| **B - Intermediate** | **Razor Pages** (Thymeleaf/Jinja2 equivalent): `@page`, `PageModel`, tag helpers, layout (`_Layout.cshtml`), partial views, `@inject`; `@Html.AntiForgeryToken`; rendered banking statement page |
+| **C - Advanced** | Security hardening: Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, Referrer-Policy headers via middleware; `HttpOnly`/`Secure`/`SameSite` cookie flags; anti-forgery tokens (`IAntiforgery`); XSS prevention with Razor's auto-encoding; rate-limiting login endpoints |
+
+**Java parallels:** Spring MVC `addResourceHandlers` → `UseStaticFiles`; `@CrossOrigin` / `CorsRegistry` → `AddCors`; Thymeleaf layouts + fragments → Razor Pages layouts + partials; Spring Security headers → custom middleware + `IAntiforgery`; `spring-boot-starter-thymeleaf` → Razor Pages.
 
 ---
 

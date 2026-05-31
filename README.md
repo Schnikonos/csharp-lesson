@@ -129,6 +129,106 @@ dotnet test --filter "FullyQualifiedName~CsvFileTests"
 
 ---
 
+# Lesson 10-C — Template Engine (Scriban)
+
+> **Branch:** `lesson/10-file-handling/c-advanced`
+> **Prerequisites:** Lesson 10-B (file I/O, CsvHelper)
+
+Scriban is a lightweight .NET template engine with `{{ variable }}` syntax inspired by Liquid and Jinja2.
+Use it wherever you need to generate text artefacts **outside** of a web request — transaction emails,
+PDF/text reports, bank statements, batch files, or any other text-based output.
+
+## What you will learn
+
+| Topic | C# .NET | Java parallel |
+|---|---|---|
+| Template engine abstraction | `ITemplateEngine` / `ScribanTemplateEngine` | `TemplateEngine` (Thymeleaf) / `Environment` (Jinja2) |
+| Variable interpolation | `{{ customer_name }}` | `${customerName}` / `th:text="${customer}"` |
+| Loops | `{{- for tx in transactions }} … {{- end }}` | `th:each` / `{% for %}` |
+| Conditionals | `{{ if is_vip }} … {{ else }} … {{ end }}` | `th:if` / `{% if %}` |
+| Filters / pipes | `{{ amount \| math.format "0.00" }}` | `#numbers.formatDecimal` / `{{ amount\|format }}` |
+| Model binding | PascalCase ? `snake_case` via custom renamer | `th:object="${model}"` / Jinja2 context dict |
+| File-based templates | `RenderAsync("bank-statement.txt", model)` | `templateEngine.process("statement", context)` |
+| Inline templates | `RenderStringAsync(source, model)` | `templateEngine.process(new StringTemplateResource(s), ctx)` |
+
+## Key concepts
+
+### `ITemplateEngine` — the abstraction
+
+```csharp
+// Java: TemplateEngine / Environment.get_template(name).render(context)
+public interface ITemplateEngine
+{
+    Task<string> RenderAsync(string templateName, object model, CancellationToken ct = default);
+    Task<string> RenderStringAsync(string templateSource, object model, CancellationToken ct = default);
+}
+```
+
+Registered as a **singleton** because the Scriban parse tree is thread-safe and stateless:
+
+```csharp
+builder.Services.AddSingleton<ITemplateEngine>(_ =>
+    new ScribanTemplateEngine(
+        Path.Combine(AppContext.BaseDirectory, "Templating", "Templates")));
+```
+
+### PascalCase ? snake_case renaming
+
+Scriban expects `{{ transaction_id }}` (snake_case). The engine automatically converts
+.NET PascalCase property names using a regex renamer — no manual mapping required.
+
+### Template file location
+
+Templates live in `Lesson/Templating/Templates/` and are copied to the output directory
+via the `<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>` csproj directive.
+The same copy rule applies to the test project so file-based rendering tests work without
+a running web server.
+
+## Endpoints
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| `GET` | `/api/templating/email/{transactionId}` | Renders a transaction confirmation email |
+| `GET` | `/api/templating/statement/{accountNumber}` | Renders a plain-text bank statement |
+| `GET` | `/api/templating/report/{year}/{month}` | Renders a monthly activity report |
+| `POST` | `/api/templating/inline` | Renders an arbitrary inline Scriban template |
+
+## Project structure (new / changed files)
+
+```
+Lesson/
+  Templating/
+    ITemplateEngine.cs          NEW  abstraction (like Thymeleaf TemplateEngine interface)
+    ScribanTemplateEngine.cs    NEW  Scriban implementation with PascalCase?snake_case renamer
+    Templates/
+      transaction-email.txt     NEW  email body template
+      bank-statement.txt        NEW  plain-text statement template
+      monthly-report.txt        NEW  monthly report template
+  Controllers/
+    TemplatingController.cs     NEW  render endpoints
+  Program.cs                    MOD  ITemplateEngine singleton registration
+  Lesson.csproj                 MOD  Scriban package + CopyToOutputDirectory for templates
+Lesson.Tests/
+  TemplatingTests.cs            NEW  9 tests covering RenderStringAsync + RenderAsync
+  Lesson.Tests.csproj           MOD  CopyToOutputDirectory for template files
+```
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~TemplatingTests"
+# 9 tests — all pass
+```
+
+## Exercises
+
+1. Add a `{{ if amount > 1000 }}HIGH VALUE{{ end }}` badge to `transaction-email.txt` and write a test for it.
+2. Create a new `welcome-letter.txt` template and a `/api/templating/welcome/{customerId}` endpoint.
+3. Extend `ScribanTemplateEngine` to support template **caching** — parse each template once and reuse the AST.
+4. Render a Scriban template to HTML and return it as `text/html` — observe how `{{ }}` prevents XSS by auto-encoding (compare with Razor's `@Html.Raw`).
+
+---
+
 ## What you will learn
 
 | Topic | C# .NET | Java parallel |

@@ -1,0 +1,14 @@
+Subject: Your transaction confirmation — {{ transaction_id }}
+
+Dear {{ customer_name }},
+
+We confirm the following transaction on your account {{ account_number }}:
+
+  Date   : {{ transaction_date }}
+  Amount : {{ currency }} {{ amount | math.format "0.00" }}
+  Type   : {{ transaction_type }}
+
+If you did not authorise this transaction, please contact us immediately.
+
+Best regards,
+Sandbox Bank

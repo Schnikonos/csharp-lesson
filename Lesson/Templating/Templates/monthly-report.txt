@@ -1,0 +1,16 @@
+MONTHLY REPORT — {{ month }} {{ year }}
+======================================
+Generated : {{ generated_at }}
+
+Summary
+-------
+Total deposits    : {{ currency }} {{ total_deposits  | math.format "0.00" }}
+Total withdrawals : {{ currency }} {{ total_withdrawals | math.format "0.00" }}
+Net cash flow     : {{ currency }} {{ net_cash_flow    | math.format "0.00" }}
+Active accounts   : {{ active_accounts }}
+
+Top 5 transactions
+------------------
+{{- for tx in top_transactions }}
+  {{ tx.date }}  {{ tx.account | string.pad_right 12 }}  {{ tx.type | string.pad_right 10 }}  {{ tx.currency }} {{ tx.amount | math.format "0.00" | string.pad_left 12 }}
+{{- end }}

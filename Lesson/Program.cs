@@ -37,6 +37,7 @@ using Lesson.Pipeline;
 using Lesson.Repositories;
 using Lesson.ScheduledTasks;
 using Lesson.UnitOfWork;
+using Lesson.Templating;
 using Lesson.Validators;
 using FluentValidation;
 using MediatR;
@@ -141,6 +142,14 @@ builder.Services.AddSingleton<InterestCalculationService>(sp =>
         sp.GetRequiredService<ILogger<InterestCalculationService>>(),
         period: TimeSpan.FromSeconds(30)));   // 30-second interval in production host
 builder.Services.AddHostedService(sp => sp.GetRequiredService<InterestCalculationService>());
+
+// ----- 10-C: Scriban template engine -----
+// Scriban is a lightweight .NET template engine with {{ }} syntax inspired by Liquid/Jinja2.
+// Java parallel: Thymeleaf TemplateEngine / FreeMarker Configuration
+// ITemplateEngine is a singleton: the parsed template cache is thread-safe.
+builder.Services.AddSingleton<ITemplateEngine>(_ =>
+    new ScribanTemplateEngine(
+        Path.Combine(AppContext.BaseDirectory, "Templating", "Templates")));
 
 // ----- 09-B: Quartz.NET scheduler -----
 // AddQuartz registers the scheduler engine and wires IJob resolution to DI.
