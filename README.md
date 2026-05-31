@@ -1,4 +1,70 @@
-# Lesson 16-C — Advanced Concurrency: Channel\<T\>, IAsyncEnumerable\<T\>, ValueTask, ReaderWriterLockSlim
+# Lesson 17-A — MassTransit In-Memory Bus: IPublishEndpoint, IConsumer\<T\>, ITestHarness
+
+> **Branch:** `lesson/17-messaging/a-basic`
+> **Prerequisites:** Lesson 16-C (async/channels)
+
+## What you will learn
+
+| Concept | C# / MassTransit | Java parallel |
+|---|---|---|
+| Register bus | `AddMassTransit(x => x.UsingInMemory(...))` | `@EnableRabbit` / `@EnableKafka` |
+| Publish message | `IPublishEndpoint.Publish<T>(msg)` | `ApplicationEventPublisher.publishEvent()` / `RabbitTemplate.convertAndSend()` |
+| Consume message | `IConsumer<T>` + `Task Consume(ConsumeContext<T>)` | `@RabbitListener` / `@KafkaListener` |
+| Test harness | `AddMassTransitTestHarness` + `ITestHarness` | `EmbeddedKafka` / `@MockBean` |
+| In-memory transport | `UsingInMemory()` | Spring ApplicationEvent (in-process) |
+
+## Key code pattern
+
+```csharp
+// 1. Define a message contract (plain record — no MassTransit dependency)
+public record AccountCreatedEvent(int AccountId, string AccountNumber, ...);
+
+// 2. Consumer — receives every published AccountCreatedEvent
+public class AccountCreatedConsumer : IConsumer<AccountCreatedEvent>
+{
+    public Task Consume(ConsumeContext<AccountCreatedEvent> ctx)
+    {
+        var msg = ctx.Message;
+        // process...
+        return Task.CompletedTask;
+    }
+}
+
+// 3. Publish from a controller
+public class MessagingDemoController(IPublishEndpoint pub) : ControllerBase
+{
+    [HttpPost("account-created")]
+    public async Task<IActionResult> Publish([FromBody] Req req, CancellationToken ct)
+    {
+        await pub.Publish(new AccountCreatedEvent(...), ct);
+        return Accepted();
+    }
+}
+
+// 4. Program.cs
+builder.Services.AddMassTransit(x => {
+    x.AddConsumers(typeof(Program).Assembly); // auto-register all IConsumer<T>
+    x.UsingInMemory((ctx, cfg) => cfg.ConfigureEndpoints(ctx));
+});
+
+// 5. Test harness
+services.AddMassTransitTestHarness(x => x.AddConsumers(typeof(Program).Assembly));
+var harness = scope.ServiceProvider.GetRequiredService<ITestHarness>();
+harness.Published.Select<AccountCreatedEvent>() // assert published
+var ch = harness.GetConsumerHarness<AccountCreatedConsumer>();
+await ch.Consumed.Any<AccountCreatedEvent>()    // assert consumed
+```
+
+## Exercises
+1. Add a `BalanceChangedEvent` published from the transfer endpoint — write a consumer that logs it.
+2. Add a second consumer for `AccountCreatedEvent` that sends a welcome email (just log it) — verify both consumers fire.
+
+## Tests
+```bash
+dotnet test --filter "FullyQualifiedName~MessagingDemoTests"
+# 4 tests — all pass
+```
+
 
 > **Branch:** `lesson/16-multithreading/c-advanced`
 > **Prerequisites:** Lesson 16-B (thread-safety primitives)

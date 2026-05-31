@@ -41,6 +41,7 @@ using Lesson.ScheduledTasks;
 using Lesson.UnitOfWork;
 using Lesson.Validators;
 using FluentValidation;
+using MassTransit;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Quartz;
@@ -281,6 +282,26 @@ builder.Services.AddHealthChecks()
     .AddDbContextCheck<BankingDbContext>("database"); // pings the DB via EF Core
 
 builder.Services.AddOpenApi();
+
+// ----- 17-A: MassTransit — in-memory transport -----
+// MassTransit is an open-source message-bus abstraction for .NET.
+// UsingInMemory() wires a fully functional in-process bus — no broker required.
+// Swap to UsingRabbitMq() / UsingKafka() without changing consumers or publishers.
+//
+// Java parallel:
+//   Spring ApplicationEventPublisher (in-process)  ?  IPublishEndpoint (in-memory)
+//   @RabbitListener                                ?  IConsumer<T>
+//   RabbitTemplate.convertAndSend()               ?  IPublishEndpoint.Publish()
+builder.Services.AddMassTransit(x =>
+{
+    // Register all consumers in this assembly automatically
+    x.AddConsumers(typeof(Program).Assembly);
+
+    x.UsingInMemory((ctx, cfg) =>
+    {
+        cfg.ConfigureEndpoints(ctx);
+    });
+});
 
 var app = builder.Build();
 
