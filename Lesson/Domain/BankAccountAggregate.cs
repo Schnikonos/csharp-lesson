@@ -22,12 +22,24 @@ namespace Lesson.Domain;
 /// </summary>
 public class BankAccountAggregate : AggregateRoot
 {
-    public int    Id            { get; private set; }
+    public int    Id            { get; internal set; }
     public string AccountNumber { get; private set; } = null!;
     public string OwnerName     { get; private set; } = null!;
     public Money  Balance       { get; private set; }
 
     private BankAccountAggregate() { }   // for ORM / factory
+
+    /// <summary>Reconstruct from persistence (no invariants enforced — data already valid).</summary>
+    internal static BankAccountAggregate Reconstruct(int id, string accountNumber, string ownerName, Money balance)
+    {
+        return new BankAccountAggregate
+        {
+            Id            = id,
+            AccountNumber = accountNumber,
+            OwnerName     = ownerName,
+            Balance       = balance,
+        };
+    }
 
     /// <summary>Factory method — the only way to create a valid aggregate.</summary>
     public static BankAccountAggregate Open(

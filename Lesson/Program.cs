@@ -158,7 +158,12 @@ builder.Services.AddTransient(
     typeof(IPipelineBehavior<,>),
     typeof(TransactionBehavior<,>));
 
-// ----- 08-A: Domain event bus + audit subscriber -----
+// ----- 19-B: DDD aggregate repository -----
+// IAggregateRepository abstracts EF Core from the domain layer.
+// Java parallel: Spring Data @Repository / Axon EventSourcingRepository
+builder.Services.AddScoped<Lesson.Domain.IAggregateRepository, Lesson.Infrastructure.EfAggregateRepository>();
+
+// ----- 08-A + audit subscriber -----
 builder.Services.AddSingleton<Lesson.Events.DomainEventBus>();
 builder.Services.AddSingleton<Lesson.Subscribers.PaymentAuditSubscriber>();
 
