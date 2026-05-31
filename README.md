@@ -1,4 +1,128 @@
-# Lesson 14-A — IMemoryCache: cache-aside, expiry, invalidation
+# Lesson 14-B — IDistributedCache + Redis: cache-aside with JSON serialization
+
+> **Branch:** `lesson/14-caching/b-intermediate`
+> **Prerequisites:** Lesson 14-A (IMemoryCache)
+
+---
+
+## What you will learn
+
+| Topic | C# .NET | Java Spring |
+|---|---|---|
+| Distributed cache interface | `IDistributedCache` | `CacheManager` / `RedisTemplate` |
+| In-process dev backend | `AddDistributedMemoryCache()` | H2 / Caffeine (local test) |
+| Redis production backend | `AddStackExchangeRedisCache(o => o.Configuration = "...")` | `spring.data.redis.host=...` |
+| Get bytes | `await cache.GetAsync(key)` | `redisTemplate.opsForValue().get(key)` |
+| Set bytes + options | `await cache.SetAsync(key, bytes, options)` | `redisTemplate.opsForValue().set(key, value, ttl, SECONDS)` |
+| Remove | `await cache.RemoveAsync(key)` | `redisTemplate.delete(key)` |
+| Serialize object | `JsonSerializer.Serialize(value)` ? `byte[]` | `objectMapper.writeValueAsBytes(value)` |
+
+---
+
+## 1. IDistributedCache vs IMemoryCache
+
+| | `IMemoryCache` (14-A) | `IDistributedCache` (14-B) |
+|---|---|---|
+| Storage | In the process heap | External store (Redis, SQL, …) |
+| Works across multiple servers | ? (single node) | ? (shared store) |
+| Stores objects directly | ? | ? — must serialize to `byte[]` |
+| No external dependency | ? | ? (needs Redis or DB) |
+| Suitable for | Single-instance API, session, rate-limiting | Clustered APIs, session sharing, pub/sub |
+
+---
+
+## 2. Registration — swapping without changing code
+
+```csharp
+// Development — no Redis needed
+if (builder.Environment.IsDevelopment())
+    builder.Services.AddDistributedMemoryCache();
+
+// Production — uncomment and set connection string
+// builder.Services.AddStackExchangeRedisCache(o =>
+//     o.Configuration = builder.Configuration.GetConnectionString("Redis"));
+```
+
+The controller only depends on `IDistributedCache` — swapping the provider is a **single line change** in `Program.cs`.
+
+**Java parallel:**
+```java
+@Bean
+CacheManager cacheManager(RedisConnectionFactory cf) {
+    return RedisCacheManager.builder(cf).build();
+}
+// swap to CaffeineCacheManager for local dev
+```
+
+---
+
+## 3. Serialization
+
+`IDistributedCache` stores `byte[]`, not objects:
+
+```csharp
+// Write
+await cache.SetAsync(
+    $"account:{id}",
+    Encoding.UTF8.GetBytes(JsonSerializer.Serialize(account)),
+    new DistributedCacheEntryOptions
+    {
+        AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5),
+        SlidingExpiration               = TimeSpan.FromMinutes(2),
+    });
+
+// Read
+var bytes   = await cache.GetAsync($"account:{id}");
+var account = JsonSerializer.Deserialize<BankAccount>(Encoding.UTF8.GetString(bytes!));
+```
+
+---
+
+## 4. Running a real Redis (optional)
+
+```bash
+# Docker
+docker run -p 6379:6379 redis:latest
+
+# Then in appsettings.json
+"ConnectionStrings": {
+  "Redis": "localhost:6379"
+}
+# and uncomment AddStackExchangeRedisCache in Program.cs
+```
+
+---
+
+## Project Structure (new / changed files)
+
+```
+Lesson/
+  Controllers/
+    DistributedCacheController.cs  NEW  GET /distributed-cache/accounts/{id},
+                                        POST /distributed-cache/accounts,
+                                        DELETE /distributed-cache/accounts/{id}/cache
+  Program.cs                            + AddDistributedMemoryCache() (dev) / Redis comment
+Lesson.Tests/
+  DistributedCacheTests.cs         NEW  4 integration tests
+```
+
+---
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~DistributedCacheTests"
+# 4 tests — all pass (using AddDistributedMemoryCache for test isolation)
+```
+
+---
+
+## Exercises
+
+1. Wrap the serialization helpers into a generic `ICacheService<T>` with `GetOrSetAsync`, `RemoveAsync` — this is the real-world pattern to avoid `byte[]` boilerplate in controllers.
+2. Change the expiry to 2 seconds, wait 3 seconds in a test, and assert the cache entry is gone.
+3. Start a Redis Docker container and switch `Program.cs` to `AddStackExchangeRedisCache` — run the tests against real Redis and observe the `StackExchange.Redis` connection log.
+
 
 > **Branch:** `lesson/14-caching/a-basic`
 > **Prerequisites:** Lesson 13-C (auth, DI patterns)

@@ -174,6 +174,16 @@ builder.Services.AddSingleton<TokenStore>();
 // Java parallel: @EnableCaching + Spring CacheManager
 builder.Services.AddMemoryCache();
 
+// ----- 14-B: IDistributedCache -----
+// In Development: in-process memory (single-node, no Redis required).
+// In Production:  swap to AddStackExchangeRedisCache — the interface stays the same.
+// Java parallel: Spring RedisCacheManager / CaffeineCacheManager — swap via @Bean
+if (builder.Environment.IsDevelopment())
+    builder.Services.AddDistributedMemoryCache();
+// Uncomment for real Redis:
+// builder.Services.AddStackExchangeRedisCache(o =>
+//     o.Configuration = builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379");
+
 // ----- 08-C: Channel<T> outbox queue + background consumer -----
 builder.Services.AddSingleton<OutboxChannel>();
 builder.Services.AddSingleton<OutboxConsumerService>();
