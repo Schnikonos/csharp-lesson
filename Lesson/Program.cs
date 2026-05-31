@@ -297,6 +297,12 @@ builder.Services.AddMassTransit(x =>
     // Register all consumers in this assembly automatically
     x.AddConsumers(typeof(Program).Assembly);
 
+    // 17-C: Register the transfer saga with in-memory repository
+    x.AddSagaStateMachine<
+        Lesson.Messaging.Sagas.TransferStateMachine,
+        Lesson.Messaging.Sagas.TransferSagaState>()
+        .InMemoryRepository();
+
     x.UsingInMemory((ctx, cfg) =>
     {
         cfg.ConfigureEndpoints(ctx);

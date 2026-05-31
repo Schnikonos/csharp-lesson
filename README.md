@@ -1,4 +1,65 @@
-# Lesson 17-B — MassTransit Request/Response: IRequestClient\<T\>, Consumer Reply
+# Lesson 17-C — MassTransit Saga (State Machine)
+
+> **Branch:** `lesson/17-messaging/c-advanced`
+
+## What you will learn
+
+A **saga** is a long-running, stateful workflow coordinated through messages.  
+Each state transition is triggered by an incoming message. MassTransit persists the saga state between transitions (in-memory, EF Core, Redis, etc.).
+
+```
+InitiateTransferCommand  ?  [saga created]  ?  publishes TransferCompletedEvent  ?  Finalized
+TransferFailedEvent      ?  [any state]     ?  Failed ? Finalized
+```
+
+## Key pattern
+
+```csharp
+// 1. State class — persisted between steps
+public class TransferSagaState : SagaStateMachineInstance
+{
+    public Guid   CorrelationId { get; set; }  // MassTransit saga identity
+    public string CurrentState  { get; set; } = null!;
+    public int    FromAccountId { get; set; }
+    public decimal Amount       { get; set; }
+}
+
+// 2. State machine — declares states, events, transitions
+public class TransferStateMachine : MassTransitStateMachine<TransferSagaState>
+{
+    public State Failed { get; private set; } = null!;
+    public Event<InitiateTransferCommand> TransferInitiated { get; private set; } = null!;
+
+    public TransferStateMachine()
+    {
+        InstanceState(x => x.CurrentState);
+        Event(() => TransferInitiated, x => x.CorrelateById(ctx => ctx.Message.CorrelationId));
+
+        Initially(
+            When(TransferInitiated)
+                .Then(ctx => { ctx.Saga.FromAccountId = ctx.Message.FromAccountId; })
+                .PublishAsync(ctx => ctx.Init<TransferCompletedEvent>(new { ... }))
+                .Finalize());
+
+        SetCompletedWhenFinalized();
+    }
+}
+
+// 3. Register
+builder.Services.AddMassTransit(x => {
+    x.AddSagaStateMachine<TransferStateMachine, TransferSagaState>().InMemoryRepository();
+    x.UsingInMemory((ctx, cfg) => cfg.ConfigureEndpoints(ctx));
+});
+```
+
+**Java parallel:** Axon Framework `@Saga` + `@SagaEventHandler` / Spring State Machine transitions
+
+## Tests
+```bash
+dotnet test --filter "FullyQualifiedName~MessagingAdvancedTests"
+# 3 tests — all pass
+```
+
 
 > **Branch:** `lesson/17-messaging/b-intermediate`
 
