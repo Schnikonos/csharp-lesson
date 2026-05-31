@@ -76,6 +76,57 @@ STOMP `session.subscribe("/topic/account-1", handler)` ? `connection.InvokeAsync
 dotnet test --filter "FullyQualifiedName~SignalRBasicTests"   # 4 tests
 ```
 
+## 24-B — Groups, IUserIdProvider, [Authorize] hub methods
+
+### Custom IUserIdProvider
+```csharp
+// Maps a HubConnection to a stable user identifier (JWT "sub" / NameIdentifier claim)
+public class JwtUserIdProvider : IUserIdProvider
+{
+    public string? GetUserId(HubConnectionContext connection) =>
+        connection.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+}
+
+// Program.cs
+builder.Services.AddSingleton<IUserIdProvider, JwtUserIdProvider>();
+```
+
+### [Authorize] on hub methods
+```csharp
+public class BankingHubV2 : Hub<IBankingClient>
+{
+    [Authorize]   // 401 if anonymous client tries to invoke
+    public async Task Subscribe(int accountId) =>
+        await Groups.AddToGroupAsync(Context.ConnectionId, $"account-{accountId}");
+}
+app.MapHub<BankingHubV2>("/hubs/banking/v2");
+```
+
+### Targeted user delivery (server-side)
+```csharp
+// Push to one specific user regardless of which server holds their connection
+await hub.Clients.User(userId).ReceiveBalanceChanged(evt);
+```
+
+### Group isolation test
+```csharp
+// conn1 ? group "account-1", conn2 ? group "account-2"
+// deposit to account-1 ? only conn1 receives the event
+received1.Should().Be(1);
+received2.Should().Be(0);  // isolated
+```
+
+**Java parallel:**  
+`UserDestinationResolver` + `SimpUserRegistry` ? `IUserIdProvider`.  
+`messagingTemplate.convertAndSendToUser(user, "/queue/reply", dto)` ? `Clients.User(userId).ReceiveBalanceChanged(...)`.  
+Spring Security `@PreAuthorize` on `@MessageMapping` ? `[Authorize]` on hub method.
+
+## Tests
+```bash
+dotnet test --filter "FullyQualifiedName~SignalRBasicTests"     # 4 tests (24-A)
+dotnet test --filter "FullyQualifiedName~SignalRAdvancedTests"  # 4 tests (24-B)
+```
+
 ---
 
 # Lesson 23 — Docker & docker-compose

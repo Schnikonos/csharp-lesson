@@ -286,6 +286,10 @@ builder.Services.AddGrpc();
 // ----- 24-A: SignalR hub registration -----
 // Java parallel: @EnableWebSocketMessageBroker / configureMessageBroker
 builder.Services.AddSignalR();
+// ----- 24-B: Custom IUserIdProvider -----
+// Maps connection to user identity for Clients.User(userId) routing.
+// Java parallel: UserDestinationResolver / SimpUserRegistry
+builder.Services.AddSingleton<Microsoft.AspNetCore.SignalR.IUserIdProvider, Lesson.Hubs.JwtUserIdProvider>();
 
 // ----- 21-B: API Versioning via URL segment -----
 // AddApiVersioning + AddMvc() registers versioning for both controllers and minimal APIs.
@@ -407,6 +411,8 @@ app.MapGrpcService<Lesson.Services.GrpcBankingService>();
 // Clients connect via WebSocket to /hubs/banking
 // Java parallel: registry.addEndpoint("/ws/banking").withSockJS()
 app.MapHub<Lesson.Hubs.BankingHub>("/hubs/banking");
+// ----- 24-B: v2 hub with [Authorize] methods -----
+app.MapHub<Lesson.Hubs.BankingHubV2>("/hubs/banking/v2");
 // ----- 21-A: Minimal API endpoints -----
 // Routes defined via extension method; no controller class needed.
 // Java parallel: @GetMapping / @PostMapping lambdas in Spring functional routing
