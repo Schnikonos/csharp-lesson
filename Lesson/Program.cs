@@ -178,6 +178,9 @@ builder.Services.AddScoped<Lesson.ResultPattern.AccountResultService>();
 // ----- 22-B: Railway-oriented pipeline service -----
 builder.Services.AddScoped<Lesson.ResultPattern.AccountRopService>();
 
+// ----- 25-A: Event Sourcing -----
+builder.Services.AddSingleton<Lesson.EventSourcing.IEventStore, Lesson.EventSourcing.InMemoryEventStore>();
+
 // ----- 08-A + audit subscriber -----
 builder.Services.AddSingleton<Lesson.Events.DomainEventBus>();
 builder.Services.AddSingleton<Lesson.Subscribers.PaymentAuditSubscriber>();
