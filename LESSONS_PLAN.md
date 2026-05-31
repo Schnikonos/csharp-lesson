@@ -35,7 +35,7 @@ Each part-branch is created **off the previous part** (`a → b → c`), so `git
 |------|---------|
 | **A - Basic** | `AccountController` with `GET /accounts` and `POST /accounts`; `IAccountService` + `AccountService` wired via DI; record/DTO pattern; `IActionResult` vs typed returns |
 | **B - Intermediate** | Typed `HttpClient` calling an external exchange-rate API; `IHttpClientFactory`; `async/await` + `CancellationToken`; `IOptions<T>` for base URL config |
-| **C - Advanced** | Resilience with **Polly** (retry, circuit breaker); API response caching; client-side timeout policy; `HttpClient` best practices |
+| **C - Advanced** | Resilience with **Polly v8** (`ResiliencePipelineBuilder`, `AddStandardResilienceHandler`); retry, circuit breaker, timeout, hedging; `AddResilienceHandler` on named `HttpClient`; raw `ResiliencePipeline<T>` for non-HTTP calls; comparing Polly v7 vs v8 API |
 
 **Java parallels:** `@RestController` → `[ApiController]`; `@Service` → registered in `IServiceCollection`; `RestTemplate`/`WebClient` → `HttpClient` / typed client.
 
@@ -48,7 +48,7 @@ Each part-branch is created **off the previous part** (`a → b → c`), so `git
 |------|---------|
 | **A - Basic** | `appsettings.json` sections; reading with `IConfiguration`; environment-specific overrides (`appsettings.Development.json`) |
 | **B - Intermediate** | Strongly-typed config with `IOptions<T>`, `IOptionsSnapshot<T>`, `IOptionsMonitor<T>`; validation on startup (`ValidateDataAnnotations`, `ValidateOnStart`) |
-| **C - Advanced** | User Secrets; environment variables; Azure Key Vault integration pattern; custom `IConfigurationProvider` |
+| **C - Advanced** | User Secrets; environment variables; Azure Key Vault integration pattern; custom `IConfigurationProvider`; **Feature Flags** with `Microsoft.FeatureManagement` — `IFeatureManager.IsEnabledAsync`, `[FeatureGate]` on controller actions, `PercentageFilter` for gradual rollout, feature flag in `appsettings.json` |
 
 **Java parallels:** `application.properties` / `@ConfigurationProperties` → `appsettings.json` / `IOptions<T>`.
 
@@ -98,7 +98,7 @@ Each part-branch is created **off the previous part** (`a → b → c`), so `git
 |------|---------|
 | **A - Basic** | Custom `IMiddleware`; request/response logging middleware; middleware ordering in `Program.cs` |
 | **B - Intermediate** | `IActionFilter` / `IAsyncActionFilter`; adding correlation ID to `HttpContext`; enriching response headers; short-circuiting pipeline |
-| **C - Advanced** | `IResourceFilter`, `IResultFilter`; endpoint-scoped filters via `[ServiceFilter]`; `IEndpointFilter` (.NET 7+ minimal API style); custom `[Authorize]` policy handler |
+| **C - Advanced** | `IResourceFilter`, `IResultFilter`; endpoint-scoped filters via `[ServiceFilter]`; `IEndpointFilter` (.NET 7+ minimal API style); custom `[Authorize]` policy handler; **Rate Limiting** with built-in `System.Threading.RateLimiting` + `UseRateLimiter` middleware — fixed-window, sliding-window, token-bucket, and concurrency limiters; `[EnableRateLimiting]` / `[DisableRateLimiting]`; 429 Too Many Requests handling |
 
 **Java parallels:** `OncePerRequestFilter` / `HandlerInterceptor` → `IMiddleware` / `IActionFilter`.
 
@@ -174,7 +174,7 @@ Each part-branch is created **off the previous part** (`a → b → c`), so `git
 |------|---------|
 | **A - Basic** | **xUnit** — `[Fact]`, `[Theory]`, `[InlineData]`; Arrange/Act/Assert; naming conventions; testing `AccountService` in isolation |
 | **B - Intermediate** | **Moq** — mocking `IAccountRepository`, `IHttpClientFactory`; `Mock<T>`, `Setup`, `Verify`; `FluentAssertions` for readable assertions |
-| **C - Advanced** | Integration tests with `WebApplicationFactory<Program>`; in-memory SQLite DB for EF Core tests; `TestContainers` intro; code coverage with Coverlet |
+| **C - Advanced** | Integration tests with `WebApplicationFactory<Program>`; in-memory SQLite DB for EF Core tests; **TestContainers** — `Testcontainers.PostgreSql` spinning up a real Postgres container per test class; verifying real FK constraints and migrations; `IAsyncLifetime` for container lifecycle; code coverage with Coverlet |
 
 **Java parallels:** JUnit 5 → xUnit; Mockito → Moq; `@SpringBootTest` → `WebApplicationFactory`.
 
@@ -219,6 +219,140 @@ Each part-branch is created **off the previous part** (`a → b → c`), so `git
 
 ---
 
+<<<<<<< HEAD
+=======
+### Lesson 16 — Multithreading & Concurrency
+**Branches:** `lesson/16-multithreading/a-basic` · `b-intermediate` · `c-advanced`
+
+| Part | Content |
+|------|--------|
+| **A - Basic** | `Thread`, `Task`, `Task.Run`; `async`/`await` deep dive (state machine, `ConfigureAwait`); `Task.WhenAll` / `Task.WhenAny`; `CancellationToken` patterns |
+| **B - Intermediate** | Thread-safety primitives: `lock`, `Monitor`, `Interlocked`, `SemaphoreSlim`; `ConcurrentDictionary` / `ConcurrentQueue`; `Parallel.ForEach` / `Parallel.For`; `ThreadLocal<T>` |
+| **C - Advanced** | `Channel<T>` for producer/consumer pipelines; `IAsyncEnumerable<T>` streaming; `ValueTask`; thread pool tuning; deadlock diagnosis; `Mutex` / `ReaderWriterLockSlim` for cross-process scenarios |
+
+**Java parallels:** `CompletableFuture` → `Task`; `synchronized` / `ReentrantLock` → `lock` / `SemaphoreSlim`; `ConcurrentHashMap` → `ConcurrentDictionary`; `ExecutorService` → `Task` + thread pool; `BlockingQueue` → `Channel<T>`.
+
+**Unit tests for this lesson:** `Task`-based unit tests using `async Task` test methods; testing cancellation with `CancellationTokenSource`; verifying thread-safe behaviour under concurrent load with `Parallel.For`.
+
+---
+
+---
+
+### Lesson 17 — Messaging with MassTransit (RabbitMQ / Kafka)
+**Branches:** `lesson/17-messaging/a-basic` · `b-intermediate` · `c-advanced`
+
+| Part | Content |
+|------|---------|
+| **A - Basic** | MassTransit in-memory transport; `IPublishEndpoint`; `IConsumer<T>`; sending `AccountCreatedEvent` from the accounts endpoint; consumer registered via `AddConsumer<T>` |
+| **B - Intermediate** | RabbitMQ transport (test with `MassTransit.TestFramework`); request/response pattern (`IRequestClient<T>`); message retry and error queues; `IConsumeContext` headers |
+| **C - Advanced** | Outbox pattern (`UseEntityFrameworkOutbox`); Saga / `MassTransitStateMachine` for a multi-step transfer workflow; Kafka transport overview; consumer fault handling |
+
+**Java parallels:** Spring AMQP `@RabbitListener` → `IConsumer<T>`; `RabbitTemplate.send` → `IPublishEndpoint.Publish`; Debezium outbox → MassTransit EF Core outbox.
+
+---
+
+### Lesson 18 — CQRS + MediatR Pipeline Behaviours
+**Branches:** `lesson/18-cqrs-mediatr/a-basic` · `b-intermediate` · `c-advanced`
+
+| Part | Content |
+|------|---------|
+| **A - Basic** | CQRS split: `ICommand<T>` / `IQuery<T>` marker interfaces; `IRequestHandler<TRequest, TResponse>`; separate `Commands/` and `Queries/` folders; dispatch from controller via `ISender` |
+| **B - Intermediate** | `IPipelineBehavior<TRequest, TResponse>` — logging behaviour, validation behaviour (FluentValidation), transaction behaviour (wrapping command in `SaveChangesAsync`); behaviour ordering |
+| **C - Advanced** | Read model projection (query handler returns a DTO from a read-optimised query, separate from the write model); `INotification` domain events raised inside aggregate, dispatched post-commit; `MediatR` + OpenTelemetry tracing per handler |
+
+**Java parallels:** Spring `@CommandHandler` / Axon Framework → MediatR handlers; Spring AOP `@Around` → `IPipelineBehavior`.
+
+---
+
+### Lesson 19 — Domain-Driven Design (DDD) Building Blocks
+**Branches:** `lesson/19-ddd/a-basic` · `b-intermediate` · `c-advanced`
+
+| Part | Content |
+|------|---------|
+| **A - Basic** | Aggregate root base class (`AggregateRoot`); value objects with `record struct`; domain events raised inside aggregate (`AddDomainEvent`); entity vs value object distinction |
+| **B - Intermediate** | Repository abstraction over EF Core aggregate root; domain service vs application service; anti-corruption layer (ACL) adapter for external exchange-rate service; `DomainException` hierarchy |
+| **C - Advanced** | Bounded context mapping; `IUnitOfWork` dispatching domain events after `SaveChangesAsync`; eventual consistency between bounded contexts via MediatR notifications; aggregate versioning (optimistic concurrency) |
+
+**Java parallels:** Axon `@Aggregate` → `AggregateRoot`; Spring `@DomainEvents` → `AddDomainEvent`; Hexagonal ports/adapters → ACL / repository abstractions.
+
+---
+
+### Lesson 20 — gRPC
+**Branches:** `lesson/20-grpc/a-basic` · `b-intermediate`
+
+| Part | Content |
+|------|---------|
+| **A - Basic** | `.proto` contract; `Grpc.AspNetCore` service registration; unary RPC; `MapGrpcService<T>`; proto → C# code generation; calling the service with `GrpcChannel` in tests |
+| **B - Intermediate** | Server-streaming RPC returning `IAsyncEnumerable`; client-streaming; deadline / cancellation propagation; Bearer token auth via `CallCredentials`; gRPC reflection for debugging |
+
+**Java parallels:** `io.grpc` / Spring gRPC → `Grpc.AspNetCore`; `StreamObserver` → `IServerStreamWriter<T>`.
+
+---
+
+### Lesson 21 — Minimal API & API Versioning
+**Branches:** `lesson/21-minimal-api/a-basic` · `b-intermediate` · `c-advanced`
+
+| Part | Content |
+|------|---------|
+| **A - Basic** | Minimal API `app.MapGet/Post/Put/Delete`; `IEndpointRouteBuilder` extension method groups; `IEndpointFilter` for validation; typed result helpers (`TypedResults.Ok`, `TypedResults.NotFound`) |
+| **B - Intermediate** | `Asp.Versioning` — URL-segment versioning (`/v1/accounts`); header versioning; deprecation; per-version Swagger UI with built-in `.NET 9 OpenAPI`; side-by-side controller vs minimal API |
+| **C - Advanced** | Built-in `Microsoft.AspNetCore.OpenApi` (.NET 9/10) replacing Swashbuckle; `Scalar.AspNetCore` UI; `WithOpenApi()` on endpoints; typed `Results<T1,T2>` for accurate schema generation; operation transformers; document transformers for bearer auth |
+
+**Java parallels:** Spring `@RequestMapping` → `app.MapGet`; `@RestControllerAdvice` filter → `IEndpointFilter`.
+
+---
+
+### Lesson 22 — Result Pattern & Functional Error Handling
+**Branches:** `lesson/22-result-pattern/a-basic` · `b-intermediate`
+
+| Part | Content |
+|------|---------|
+| **A - Basic** | `Result<T>` / `Result` types with `ErrorOr` library; replacing thrown exceptions with `Error` returns in domain / service layer; pattern-match (`switch`) on result; mapping `Error` to `ProblemDetails` in controller |
+| **B - Intermediate** | Railway-oriented pipeline: chain `.Then()` / `.Map()` / `.Match()`; `IActionResult` extension to auto-map `ErrorOr<T>` to HTTP responses; FluentValidation integration returning `Error.Validation` |
+
+**Java parallels:** Vavr `Either<Error, T>` / `Try<T>` → `ErrorOr<T>`; `.map()` / `.getOrElse()` → `.Map()` / `.Match()`.
+
+---
+
+### Lesson 23 — Docker & docker-compose
+**Branches:** `lesson/23-docker/a-basic` · `b-intermediate`
+
+| Part | Content |
+|------|---------|
+| **A - Basic** | Multi-stage `Dockerfile` for the ASP.NET Core app; `docker-compose.yml` with app + PostgreSQL + Redis + RabbitMQ; environment variable injection; `.dockerignore`; health-check `HEALTHCHECK` directive in Dockerfile; `docker compose up` walkthrough |
+| **B - Intermediate** | **Kubernetes** — `Deployment.yaml` with replica sets; `Service.yaml` (ClusterIP + LoadBalancer); `ConfigMap` for non-secret config; `Secret` for credentials (base64); liveness + readiness probes; `HorizontalPodAutoscaler`; `kubectl` cheatsheet for common ops |
+
+**Java parallels:** Maven `spring-boot:build-image` → `dotnet publish` with `--os linux`; Spring Boot Docker Compose support → same pattern in .NET 8+.
+
+---
+
+### Lesson 24 — SignalR (Real-time)
+**Branches:** `lesson/24-signalr/a-basic` · `b-intermediate`
+
+| Part | Content |
+|------|---------|
+| **A - Basic** | `Hub` with typed client interface; `IHubContext<T>` injection into controllers; broadcasting balance-change notifications; connecting from a test client using `HubConnection` (SignalR .NET client) |
+| **B - Intermediate** | Groups + user-to-connection mapping; authorization on hub methods (`[Authorize]`); scaling with Redis backplane (`AddStackExchangeRedis`); reconnection strategies; `IUserIdProvider` |
+
+**Java parallels:** Spring WebSocket `@MessageMapping` / STOMP → SignalR `Hub`; `SimpMessagingTemplate` → `IHubContext<T>`.
+
+---
+
+---
+
+### Lesson 25 — Event Sourcing
+**Branches:** `lesson/25-event-sourcing/a-basic` · `b-intermediate`
+
+| Part | Content |
+|------|---------|
+| **A - Basic** | Append-only event store backed by EF Core (`DomainEventRecord` table); `IAggregateEvent` marker; `AccountAggregate.Apply(event)` pattern; `IEventStore.AppendAsync` / `LoadAsync`; replaying events to rebuild aggregate state from scratch; `AccountOpenedEvent`, `MoneyDepositedEvent`, `MoneyWithdrawnEvent` |
+| **B - Intermediate** | Read-model projections (`AccountSummaryProjection`) built by replaying events in order; `IProjectionRebuildService` to replay all events from store; snapshotting every N events to avoid full replay cost; snapshot storage + load-from-snapshot-then-replay pattern; comparison with traditional CRUD and audit-log approaches |
+
+**Java parallels:** Axon Framework `@EventSourcingHandler` → `Apply(event)`; Axon `EventStore` → `IEventStore`; Axon `@Projection` → `IProjectionRebuildService`.
+
+---
+
+>>>>>>> f27e93a (docs: update LESSONS_PLAN.md — Polly v8, Feature Flags, Rate Limiting, TestContainers, OpenAPI/Scalar, K8s, Lesson 25 Event Sourcing)
 ## How to Work Through a Lesson
 
 ```bash
