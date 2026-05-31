@@ -1,3 +1,83 @@
+# Lesson 24 — SignalR (Real-time)
+
+> **Branch family:** `lesson/24-signalr/{a-basic,b-intermediate}`
+
+## 24-A — Typed Hub + IHubContext broadcasting
+
+### Server: Hub with typed client interface
+```csharp
+// Typed client interface — compile-time method-name safety
+public interface IBankingClient
+{
+    Task ReceiveBalanceChanged(BalanceChangedEvent evt);
+}
+
+// Hub — clients subscribe/unsubscribe to per-account groups
+public class BankingHub : Hub<IBankingClient>
+{
+    public async Task Subscribe(int accountId) =>
+        await Groups.AddToGroupAsync(Context.ConnectionId, $"account-{accountId}");
+
+    public async Task Unsubscribe(int accountId) =>
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"account-{accountId}");
+}
+
+// Program.cs
+builder.Services.AddSignalR();
+app.MapHub<BankingHub>("/hubs/banking");
+```
+
+### Server: IHubContext injection in a controller
+```csharp
+// IHubContext lets any service push events without a client request
+public class SignalRAccountController(
+    BankingDbContext db,
+    IHubContext<BankingHub, IBankingClient> hub) : ControllerBase
+{
+    [HttpPost("{id:int}/deposit")]
+    public async Task<IActionResult> Deposit(int id, [FromBody] DepositBody body, CancellationToken ct)
+    {
+        // ... update balance ...
+        await hub.Clients
+            .Group(BankingHub.GroupName(id))
+            .ReceiveBalanceChanged(new BalanceChangedEvent(id, account.Balance, "deposit"));
+        return Ok(new { account.Id, account.Balance });
+    }
+}
+```
+
+### Test: in-process HubConnection
+```csharp
+var connection = new HubConnectionBuilder()
+    .WithUrl(factory.BaseUrl + "/hubs/banking",
+        opts => opts.HttpMessageHandlerFactory = _ => factory.Server.CreateHandler())
+    .Build();
+
+var received = new TaskCompletionSource<BalanceChangedEvent>();
+connection.On<BalanceChangedEvent>("ReceiveBalanceChanged", evt => received.TrySetResult(evt));
+
+await connection.StartAsync();
+await connection.InvokeAsync("Subscribe", accountId);
+
+// Trigger via HTTP
+await httpClient.PostAsJsonAsync($"/signalr/accounts/{id}/deposit", new { amount = 100m });
+
+var evt = await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
+evt.NewBalance.Should().Be(600m);
+```
+
+**Java parallel:**  
+`@MessageMapping` / `SimpMessagingTemplate.convertAndSend` ? `IHubContext<T>.Clients.Group(...).ReceiveBalanceChanged(...)`.  
+STOMP `session.subscribe("/topic/account-1", handler)` ? `connection.InvokeAsync("Subscribe", 1)`.  
+`StompFrameHandler` / `BlockingQueue<>` ? `TaskCompletionSource<T>`.
+
+## Tests
+```bash
+dotnet test --filter "FullyQualifiedName~SignalRBasicTests"   # 4 tests
+```
+
+---
+
 # Lesson 23 — Docker & docker-compose
 
 > **Branch:** `lesson/23-docker/a-basic`

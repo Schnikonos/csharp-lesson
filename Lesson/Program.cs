@@ -283,6 +283,10 @@ builder.Services.AddQuartzHostedService(opts =>
 // Java parallel: @EnableGrpc / spring-grpc starter
 builder.Services.AddGrpc();
 
+// ----- 24-A: SignalR hub registration -----
+// Java parallel: @EnableWebSocketMessageBroker / configureMessageBroker
+builder.Services.AddSignalR();
+
 // ----- 21-B: API Versioning via URL segment -----
 // AddApiVersioning + AddMvc() registers versioning for both controllers and minimal APIs.
 // Java parallel: spring-doc API versioning / @ApiVersion
@@ -399,6 +403,10 @@ app.MapControllers();
 // ----- 20-A: gRPC endpoint — served on HTTP/2 alongside REST (HTTP/1.1) -----
 // Java parallel: @GrpcService class registration picked up by spring-grpc
 app.MapGrpcService<Lesson.Services.GrpcBankingService>();
+// ----- 24-A: SignalR hub endpoint -----
+// Clients connect via WebSocket to /hubs/banking
+// Java parallel: registry.addEndpoint("/ws/banking").withSockJS()
+app.MapHub<Lesson.Hubs.BankingHub>("/hubs/banking");
 // ----- 21-A: Minimal API endpoints -----
 // Routes defined via extension method; no controller class needed.
 // Java parallel: @GetMapping / @PostMapping lambdas in Spring functional routing
