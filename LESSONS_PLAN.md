@@ -253,6 +253,106 @@ Each part-branch is created **off the previous part** (`a → b → c`), so `git
 
 ---
 
+---
+
+### Lesson 17 — Messaging with MassTransit (RabbitMQ / Kafka)
+**Branches:** `lesson/17-messaging/a-basic` · `b-intermediate` · `c-advanced`
+
+| Part | Content |
+|------|---------|
+| **A - Basic** | MassTransit in-memory transport; `IPublishEndpoint`; `IConsumer<T>`; sending `AccountCreatedEvent` from the accounts endpoint; consumer registered via `AddConsumer<T>` |
+| **B - Intermediate** | RabbitMQ transport (test with `MassTransit.TestFramework`); request/response pattern (`IRequestClient<T>`); message retry and error queues; `IConsumeContext` headers |
+| **C - Advanced** | Outbox pattern (`UseEntityFrameworkOutbox`); Saga / `MassTransitStateMachine` for a multi-step transfer workflow; Kafka transport overview; consumer fault handling |
+
+**Java parallels:** Spring AMQP `@RabbitListener` → `IConsumer<T>`; `RabbitTemplate.send` → `IPublishEndpoint.Publish`; Debezium outbox → MassTransit EF Core outbox.
+
+---
+
+### Lesson 18 — CQRS + MediatR Pipeline Behaviours
+**Branches:** `lesson/18-cqrs-mediatr/a-basic` · `b-intermediate` · `c-advanced`
+
+| Part | Content |
+|------|---------|
+| **A - Basic** | CQRS split: `ICommand<T>` / `IQuery<T>` marker interfaces; `IRequestHandler<TRequest, TResponse>`; separate `Commands/` and `Queries/` folders; dispatch from controller via `ISender` |
+| **B - Intermediate** | `IPipelineBehavior<TRequest, TResponse>` — logging behaviour, validation behaviour (FluentValidation), transaction behaviour (wrapping command in `SaveChangesAsync`); behaviour ordering |
+| **C - Advanced** | Read model projection (query handler returns a DTO from a read-optimised query, separate from the write model); `INotification` domain events raised inside aggregate, dispatched post-commit; `MediatR` + OpenTelemetry tracing per handler |
+
+**Java parallels:** Spring `@CommandHandler` / Axon Framework → MediatR handlers; Spring AOP `@Around` → `IPipelineBehavior`.
+
+---
+
+### Lesson 19 — Domain-Driven Design (DDD) Building Blocks
+**Branches:** `lesson/19-ddd/a-basic` · `b-intermediate` · `c-advanced`
+
+| Part | Content |
+|------|---------|
+| **A - Basic** | Aggregate root base class (`AggregateRoot`); value objects with `record struct`; domain events raised inside aggregate (`AddDomainEvent`); entity vs value object distinction |
+| **B - Intermediate** | Repository abstraction over EF Core aggregate root; domain service vs application service; anti-corruption layer (ACL) adapter for external exchange-rate service; `DomainException` hierarchy |
+| **C - Advanced** | Bounded context mapping; `IUnitOfWork` dispatching domain events after `SaveChangesAsync`; eventual consistency between bounded contexts via MediatR notifications; aggregate versioning (optimistic concurrency) |
+
+**Java parallels:** Axon `@Aggregate` → `AggregateRoot`; Spring `@DomainEvents` → `AddDomainEvent`; Hexagonal ports/adapters → ACL / repository abstractions.
+
+---
+
+### Lesson 20 — gRPC
+**Branches:** `lesson/20-grpc/a-basic` · `b-intermediate`
+
+| Part | Content |
+|------|---------|
+| **A - Basic** | `.proto` contract; `Grpc.AspNetCore` service registration; unary RPC; `MapGrpcService<T>`; proto → C# code generation; calling the service with `GrpcChannel` in tests |
+| **B - Intermediate** | Server-streaming RPC returning `IAsyncEnumerable`; client-streaming; deadline / cancellation propagation; Bearer token auth via `CallCredentials`; gRPC reflection for debugging |
+
+**Java parallels:** `io.grpc` / Spring gRPC → `Grpc.AspNetCore`; `StreamObserver` → `IServerStreamWriter<T>`.
+
+---
+
+### Lesson 21 — Minimal API & API Versioning
+**Branches:** `lesson/21-minimal-api/a-basic` · `b-intermediate`
+
+| Part | Content |
+|------|---------|
+| **A - Basic** | Minimal API `app.MapGet/Post/Put/Delete`; `IEndpointRouteBuilder` extension method groups; `IEndpointFilter` for validation; typed result helpers (`TypedResults.Ok`, `TypedResults.NotFound`) |
+| **B - Intermediate** | `Asp.Versioning` — URL-segment versioning (`/v1/accounts`); header versioning; deprecation; per-version Swagger UI with built-in `.NET 9 OpenAPI`; side-by-side controller vs minimal API |
+
+**Java parallels:** Spring `@RequestMapping` → `app.MapGet`; `@RestControllerAdvice` filter → `IEndpointFilter`.
+
+---
+
+### Lesson 22 — Result Pattern & Functional Error Handling
+**Branches:** `lesson/22-result-pattern/a-basic` · `b-intermediate`
+
+| Part | Content |
+|------|---------|
+| **A - Basic** | `Result<T>` / `Result` types with `ErrorOr` library; replacing thrown exceptions with `Error` returns in domain / service layer; pattern-match (`switch`) on result; mapping `Error` to `ProblemDetails` in controller |
+| **B - Intermediate** | Railway-oriented pipeline: chain `.Then()` / `.Map()` / `.Match()`; `IActionResult` extension to auto-map `ErrorOr<T>` to HTTP responses; FluentValidation integration returning `Error.Validation` |
+
+**Java parallels:** Vavr `Either<Error, T>` / `Try<T>` → `ErrorOr<T>`; `.map()` / `.getOrElse()` → `.Map()` / `.Match()`.
+
+---
+
+### Lesson 23 — Docker & docker-compose
+**Branches:** `lesson/23-docker/a-basic`  *(single part)*
+
+| Part | Content |
+|------|---------|
+| **A - Basic** | Multi-stage `Dockerfile` for the ASP.NET Core app; `docker-compose.yml` with app + PostgreSQL + Redis + RabbitMQ; environment variable injection; `.dockerignore`; health-check `HEALTHCHECK` directive in Dockerfile; `docker compose up` walkthrough |
+
+**Java parallels:** Maven `spring-boot:build-image` → `dotnet publish` with `--os linux`; Spring Boot Docker Compose support → same pattern in .NET 8+.
+
+---
+
+### Lesson 24 — SignalR (Real-time)
+**Branches:** `lesson/24-signalr/a-basic` · `b-intermediate`
+
+| Part | Content |
+|------|---------|
+| **A - Basic** | `Hub` with typed client interface; `IHubContext<T>` injection into controllers; broadcasting balance-change notifications; connecting from a test client using `HubConnection` (SignalR .NET client) |
+| **B - Intermediate** | Groups + user-to-connection mapping; authorization on hub methods (`[Authorize]`); scaling with Redis backplane (`AddStackExchangeRedis`); reconnection strategies; `IUserIdProvider` |
+
+**Java parallels:** Spring WebSocket `@MessageMapping` / STOMP → SignalR `Hub`; `SimpMessagingTemplate` → `IHubContext<T>`.
+
+---
+
 ## How to Work Through a Lesson
 
 ```bash
