@@ -163,6 +163,12 @@ builder.Services.AddTransient(
 // Java parallel: Spring Data @Repository / Axon EventSourcingRepository
 builder.Services.AddScoped<Lesson.Domain.IAggregateRepository, Lesson.Infrastructure.EfAggregateRepository>();
 
+// ----- 19-C: AggregateUnitOfWork — post-commit domain event dispatch -----
+// AggregateUnitOfWork wraps SaveChangesAsync + domain-event dispatch in one step.
+// Translates DbUpdateConcurrencyException into DomainConcurrencyException (no EF leak).
+// Java parallel: @TransactionalEventListener(phase = AFTER_COMMIT)
+builder.Services.AddScoped<Lesson.Infrastructure.AggregateUnitOfWork>();
+
 // ----- 08-A + audit subscriber -----
 builder.Services.AddSingleton<Lesson.Events.DomainEventBus>();
 builder.Services.AddSingleton<Lesson.Subscribers.PaymentAuditSubscriber>();
