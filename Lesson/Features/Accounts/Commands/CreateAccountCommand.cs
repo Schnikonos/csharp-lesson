@@ -1,6 +1,8 @@
 using Lesson.Cqrs;
 using Lesson.Entities;
+using Lesson.Features.Accounts.DomainEvents;
 using Lesson.UnitOfWork;
+using MediatR;
 
 namespace Lesson.Features.Accounts.Commands;
 
@@ -24,7 +26,7 @@ public record CreateAccountCommand(
     decimal InitialBalance) : ICommand<int>;   // returns the new account id
 
 // ── Handler ──────────────────────────────────────────────────────────────────
-public class CreateAccountCommandHandler(IUnitOfWork uow)
+public class CreateAccountCommandHandler(IUnitOfWork uow, IPublisher publisher)
     : MediatR.IRequestHandler<CreateAccountCommand, int>
 {
     public async Task<int> Handle(CreateAccountCommand cmd, CancellationToken ct)
@@ -39,6 +41,13 @@ public class CreateAccountCommandHandler(IUnitOfWork uow)
 
         await uow.Accounts.AddAsync(account);
         await uow.CommitAsync(ct);
+
+        // 18-C: publish domain event AFTER commit so it doesn't break atomicity
+        // IPublisher fans out to ALL INotificationHandler<T> subscribers.
+        // Java parallel: applicationEventPublisher.publishEvent(new AccountCreatedEvent(...))
+        await publisher.Publish(new AccountCreatedDomainEvent(
+            account.Id, account.AccountNumber, account.OwnerName, account.Balance), ct);
+
         return account.Id;
     }
 }

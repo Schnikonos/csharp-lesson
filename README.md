@@ -1,4 +1,78 @@
-# Lesson 17-C — MassTransit Saga (State Machine)
+# Lesson 18 — CQRS + MediatR Pipeline
+
+> **Branch family:** `lesson/18-cqrs-mediatr/{a-basic,b-intermediate,c-advanced}`
+
+## 18-A — Command/Query split + ISender dispatch
+
+```csharp
+// Marker interfaces make intent explicit at the type level
+public interface ICommand<out T> : IRequest<T> { }
+public interface IQuery<out T>   : IRequest<T> { }
+
+// Command handler — mutates state
+public class CreateAccountCommandHandler(IUnitOfWork uow) : IRequestHandler<CreateAccountCommand, int> { ... }
+
+// Query handler — read only, returns a DTO
+public class GetAllAccountsQueryHandler(IUnitOfWork uow) : IRequestHandler<GetAllAccountsQuery, IReadOnlyList<AccountSummaryDto>> { ... }
+
+// Controller has zero business logic
+[HttpPost] public async Task<IActionResult> Create([FromBody] CreateAccountCommand cmd, CancellationToken ct)
+    => CreatedAtAction(..., new { id = await sender.Send(cmd, ct) });
+```
+
+**Java parallel:** Axon `@CommandHandler` / `@QueryHandler`; Spring service delegating to dedicated handler classes.
+
+## 18-B — Pipeline behaviours (AOP-like middleware)
+
+```
+Request ? LoggingBehavior ? ValidationBehavior ? TransactionBehavior ? Handler ? Response
+```
+
+```csharp
+// Any class implementing IPipelineBehavior<TRequest,TResponse> wraps EVERY handler
+public class LoggingBehavior<TReq,TRes> : IPipelineBehavior<TReq,TRes>
+{
+    public async Task<TRes> Handle(TReq req, RequestHandlerDelegate<TRes> next, CancellationToken ct)
+    {
+        logger.LogInformation("Handling {Name}", typeof(TReq).Name);
+        var result = await next();          // call inner pipeline
+        logger.LogInformation("Handled {Name} in {Elapsed}ms", typeof(TReq).Name, sw.ElapsedMilliseconds);
+        return result;
+    }
+}
+
+// Register in order (outermost first)
+services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
+services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+services.AddTransient(typeof(IPipelineBehavior<,>), typeof(TransactionBehavior<,>));
+```
+
+**Java parallel:** Spring AOP `@Around` advice; `@Order` to control advice precedence.
+
+## 18-C — INotification domain events dispatched post-commit
+
+```csharp
+// Domain event
+public record AccountCreatedDomainEvent(...) : INotification;
+
+// Multiple subscribers — all run
+public class AuditHandler   : INotificationHandler<AccountCreatedDomainEvent> { ... }
+public class WelcomeHandler : INotificationHandler<AccountCreatedDomainEvent> { ... }
+
+// Publish after SaveChanges — keeps write-model atomic
+await uow.CommitAsync(ct);
+await publisher.Publish(new AccountCreatedDomainEvent(...), ct);
+```
+
+**Java parallel:** Spring `@DomainEvents` + `@AfterDomainEventPublication`; multiple `@EventListener` beans.
+
+## Tests
+```bash
+dotnet test --filter "FullyQualifiedName~CqrsBasicTests"     # 4 tests
+dotnet test --filter "FullyQualifiedName~CqrsPipelineTests"  # 4 tests
+dotnet test --filter "FullyQualifiedName~CqrsAdvancedTests"  # 4 tests
+```
+
 
 > **Branch:** `lesson/17-messaging/c-advanced`
 
