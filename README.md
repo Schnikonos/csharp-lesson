@@ -1,4 +1,164 @@
-# Lesson 16-A — Task, async/await Deep Dive, CancellationToken
+# Lesson 16-B — Thread-Safety Primitives: lock, Interlocked, SemaphoreSlim, ConcurrentDictionary, Parallel
+
+> **Branch:** `lesson/16-multithreading/b-intermediate`
+> **Prerequisites:** Lesson 16-A (async/await basics)
+
+---
+
+## What you will learn
+
+| Topic | C# | Java |
+|---|---|---|
+| Mutual exclusion | `lock (_obj) { ... }` | `synchronized (obj) { ... }` / `ReentrantLock` |
+| Atomic operations | `Interlocked.Increment(ref n)` | `AtomicInteger.incrementAndGet()` |
+| Async throttle | `await semaphore.WaitAsync()` | `semaphore.acquire()` (blocking) |
+| Lock-free dictionary | `ConcurrentDictionary<K,V>` | `ConcurrentHashMap<K,V>` |
+| Data parallelism (async) | `await Parallel.ForEachAsync(...)` | `parallelStream().forEach(...)` |
+| Per-thread state | `ThreadLocal<T>` | `ThreadLocal<T>` |
+| Atomic swap | `Interlocked.CompareExchange(ref v, nw, ex)` | `AtomicLong.compareAndSet(ex, nw)` |
+
+---
+
+## 1. lock vs Interlocked
+
+```csharp
+// lock — use for multi-statement critical sections
+private static readonly object _lock = new();
+private static int _count;
+
+lock (_lock)
+{
+    _count++;
+    // ... other state changes ...
+}
+
+// Interlocked — use for single-value atomic ops; no lock overhead
+private static long _counter;
+var newValue = Interlocked.Increment(ref _counter);         // ++
+var old      = Interlocked.CompareExchange(ref _counter, 99, 5); // if==5 set to 99
+```
+
+**Java parallel:**
+```java
+// synchronized block
+synchronized (this) { count++; }
+
+// AtomicLong
+AtomicLong counter = new AtomicLong();
+counter.incrementAndGet();
+counter.compareAndSet(5, 99);
+```
+
+---
+
+## 2. SemaphoreSlim — async throttle
+
+```csharp
+// Limit to 3 concurrent DB calls regardless of how many requests arrive
+private static readonly SemaphoreSlim _sem = new(3, 3);
+
+await _sem.WaitAsync(cancellationToken);  // async — does NOT block a thread
+try    { var data = await db.GetAsync(id); }
+finally { _sem.Release(); }
+```
+
+**Java parallel:**
+```java
+Semaphore sem = new Semaphore(3);
+sem.acquire();
+try { data = db.find(id); }
+finally { sem.release(); }
+// Note: Java's acquire() BLOCKS a thread; SemaphoreSlim.WaitAsync() does NOT
+```
+
+---
+
+## 3. ConcurrentDictionary
+
+```csharp
+var cache = new ConcurrentDictionary<int, decimal>();
+
+// Atomic add-if-absent
+cache.TryAdd(id, balance);
+
+// Atomic upsert
+cache.AddOrUpdate(id, balance, (k, old) => balance);
+
+// Atomic get-or-compute (factory called at most once per key)
+var val = cache.GetOrAdd(id, k => ComputeExpensive(k));
+```
+
+**Java parallel:**
+```java
+ConcurrentHashMap<Integer, BigDecimal> cache = new ConcurrentHashMap<>();
+cache.putIfAbsent(id, balance);
+cache.merge(id, balance, (old, nw) -> nw);
+cache.computeIfAbsent(id, k -> computeExpensive(k));
+```
+
+---
+
+## 4. Parallel.ForEachAsync — async data parallelism
+
+```csharp
+var options = new ParallelOptions { MaxDegreeOfParallelism = 4 };
+
+await Parallel.ForEachAsync(ids, options, async (id, ct) =>
+{
+    // IMPORTANT: each iteration must use its own DI scope —
+    // DbContext is NOT thread-safe and cannot be shared across threads.
+    await using var scope  = scopeFactory.CreateAsyncScope();
+    var uow   = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+    var data  = await uow.Accounts.GetByIdAsync(id);
+    // ...
+});
+```
+
+**Java parallel:**
+```java
+// Bounded parallel stream (uses ForkJoinPool under the hood)
+ids.parallelStream().forEach(id -> process(id));
+
+// Or with a custom executor:
+CompletableFuture<?>[] futures = ids.stream()
+    .map(id -> CompletableFuture.runAsync(() -> process(id), executor))
+    .toArray(CompletableFuture[]::new);
+CompletableFuture.allOf(futures).join();
+```
+
+---
+
+## Project Structure (new / changed files)
+
+```
+Lesson/
+  Controllers/
+    ThreadSafetyController.cs  NEW  GET  /thread-safety/stats               (lock + Interlocked)
+                                    GET  /thread-safety/semaphore/{id}       (SemaphoreSlim)
+                                    GET  /thread-safety/cache/{id}           (ConcurrentDictionary)
+                                    POST /thread-safety/parallel-interest    (Parallel.ForEachAsync)
+                                    GET  /thread-safety/interlocked-compare  (CompareExchange)
+Lesson.Tests/
+  ThreadSafetyTests.cs         NEW  7 tests
+```
+
+---
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~ThreadSafetyTests"
+# 7 tests — all pass
+```
+
+---
+
+## Exercises
+
+1. Change `_semaphore` initial count from 3 to 1 (exclusive lock via semaphore) and fire 3 requests concurrently using `Task.WhenAll` against a real multi-connection DB — verify they serialise correctly.
+2. Replace the `lock + _requestCount` pattern in `GetStats` with an `Interlocked.Increment` and observe that the behaviour is identical but with no lock contention.
+3. Add a `ReaderWriterLockSlim` demo: allow concurrent reads but exclusive writes to a shared in-memory list of flagged account IDs — this is the pattern for read-heavy shared state.
+
 
 > **Branch:** `lesson/16-multithreading/a-basic`
 > **Prerequisites:** Lesson 15-C (OpenTelemetry)
