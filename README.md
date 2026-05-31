@@ -1,4 +1,132 @@
-# Lesson 12-B — Moq + FluentAssertions
+# Lesson 12-C — Integration Tests: WebApplicationFactory + SQLite + Coverage
+
+> **Branch:** `lesson/12-unit-testing/c-advanced`
+> **Prerequisites:** Lesson 12-B (Moq, FluentAssertions)
+
+---
+
+## What you will learn
+
+| Topic | C# .NET | Java (Spring) |
+|---|---|---|
+| Integration test host | `WebApplicationFactory<Program>` | `@SpringBootTest` + `MockMvc` |
+| Share host across tests | `IClassFixture<TFactory>` | `@SpringBootTest` (singleton context) |
+| Swap real DB for test DB | `ConfigureWebHost` + `UseSqlite(":memory:")` | `@DataJpaTest` / H2 in-memory |
+| Persistent in-memory DB | `SqliteConnection` kept open in factory | H2 with `spring.datasource.url=mem:...` |
+| Seed DB directly | `IServiceScope` + `BankingDbContext` | `@Sql` or `EntityManager` in `@BeforeEach` |
+| Code coverage | `coverlet.collector` + `dotnet test --collect:"XPlat Code Coverage"` | Jacoco |
+
+---
+
+## 1. WebApplicationFactory — the core concept
+
+`WebApplicationFactory<Program>` starts the real ASP.NET Core pipeline in memory — no network, no ports — and gives you an `HttpClient` pre-wired to it.
+
+```csharp
+public class MyFactory : WebApplicationFactory<Program>
+{
+    private readonly SqliteConnection _connection = new("DataSource=:memory:");
+
+    public MyFactory() => _connection.Open();   // keep alive for full test run
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder) =>
+        builder.ConfigureServices(services =>
+        {
+            // Remove the real DB registration
+            var d = services.Single(s => s.ServiceType == typeof(DbContextOptions<BankingDbContext>));
+            services.Remove(d);
+
+            // Add in-memory SQLite using the SAME connection
+            services.AddDbContext<BankingDbContext>(o => o.UseSqlite(_connection));
+
+            // Run migrations once
+            var sp = services.BuildServiceProvider();
+            using var scope = sp.CreateScope();
+            scope.ServiceProvider.GetRequiredService<BankingDbContext>().Database.Migrate();
+        });
+}
+```
+
+**Java parallel:**
+```java
+@SpringBootTest(webEnvironment = RANDOM_PORT)
+@AutoConfigureTestDatabase(replace = Replace.ANY)
+class AccountsIntegrationTest { ... }
+```
+
+---
+
+## 2. IClassFixture — sharing the host
+
+```csharp
+public class AccountsIntegrationTests : IClassFixture<AccountsTestFactory>
+{
+    private readonly HttpClient _client;
+
+    public AccountsIntegrationTests(AccountsTestFactory factory)
+        => _client = factory.CreateClient();
+}
+```
+
+xUnit creates **one** `AccountsTestFactory` and injects it into every test constructor — exactly like Spring's shared application context.
+
+---
+
+## 3. Seeding the database directly
+
+```csharp
+using var scope = _factory.Services.CreateScope();
+var db = scope.ServiceProvider.GetRequiredService<BankingDbContext>();
+db.BankAccounts.Add(new BankAccount { ... });
+await db.SaveChangesAsync();
+```
+
+Then verify via HTTP:
+```csharp
+var list = await _client.GetFromJsonAsync<List<AccountResponse>>("/accounts");
+list.Should().Contain(a => a.AccountNumber == "SEED-001");
+```
+
+---
+
+## 4. Code coverage
+
+```bash
+dotnet test --collect:"XPlat Code Coverage"
+# Produces coverage.cobertura.xml in TestResults/
+
+# Generate HTML report (requires reportgenerator tool)
+dotnet tool install -g dotnet-reportgenerator-globaltool
+reportgenerator -reports:"**/coverage.cobertura.xml" -targetdir:"coveragereport" -reporttypes:Html
+```
+
+---
+
+## Project Structure (new / changed files)
+
+```
+Lesson.Tests/
+  AccountsIntegrationTests.cs  NEW  7 full-stack integration tests + AccountsTestFactory
+Lesson.Tests/Lesson.Tests.csproj   + coverlet.collector 6.0.4
+```
+
+---
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~AccountsIntegrationTests"
+# 7 tests — all pass
+```
+
+---
+
+## Exercises
+
+1. Add a test that creates 10 accounts and then calls `GET /accounts?type=Savings` — assert only savings accounts are returned.
+2. Test optimistic concurrency: create an account, update it once from `_client`, update it a second time from a *second* `HttpClient` using the original `RowVersion` — expect `409 Conflict`.
+3. Run `dotnet test --collect:"XPlat Code Coverage"` and open the HTML report — find which controller methods are not yet covered.
+
 
 > **Branch:** `lesson/12-unit-testing/b-intermediate`
 > **Prerequisites:** Lesson 12-A (xUnit basics, AAA pattern)
