@@ -1,4 +1,170 @@
-# Lesson 16-B — Thread-Safety Primitives: lock, Interlocked, SemaphoreSlim, ConcurrentDictionary, Parallel
+# Lesson 16-C — Advanced Concurrency: Channel\<T\>, IAsyncEnumerable\<T\>, ValueTask, ReaderWriterLockSlim
+
+> **Branch:** `lesson/16-multithreading/c-advanced`
+> **Prerequisites:** Lesson 16-B (thread-safety primitives)
+
+---
+
+## What you will learn
+
+| Topic | C# | Java |
+|---|---|---|
+| Producer/consumer queue | `Channel<T>` | `BlockingQueue` / `LinkedTransferQueue` |
+| Async streaming | `IAsyncEnumerable<T>` + `yield return` | `Flux<T>` (Reactor) / lazy `Stream<T>` |
+| Allocation-free async | `ValueTask<T>` | No direct equivalent; `CF.completedFuture()` still allocates |
+| Read-many/write-one lock | `ReaderWriterLockSlim` | `ReentrantReadWriteLock` |
+| Cross-process mutex | `Mutex` (named) | OS mutex via JNI / `FileLock` |
+
+---
+
+## 1. Channel\<T\> — producer/consumer pipeline
+
+```csharp
+// Create a bounded channel — back-pressure when full
+var channel = Channel.CreateBounded<int>(new BoundedChannelOptions(100)
+{
+    FullMode    = BoundedChannelFullMode.Wait,  // producer awaits if full
+    SingleReader = false,
+    SingleWriter = false,
+});
+
+// Producer (any thread / request)
+await channel.Writer.WriteAsync(item, ct);
+
+// Consumer (background service or another request)
+await foreach (var item in channel.Reader.ReadAllAsync(ct))
+    Process(item);
+
+// Non-blocking drain
+while (channel.Reader.TryRead(out var item))
+    Process(item);
+```
+
+**Java parallel:**
+```java
+BlockingQueue<Integer> queue = new LinkedBlockingQueue<>(100);
+queue.put(item);                    // blocks if full
+Integer item = queue.poll(1, SECONDS); // consumer
+```
+
+---
+
+## 2. IAsyncEnumerable\<T\> — async streaming
+
+```csharp
+// Yield results one by one as they arrive from IO
+private async IAsyncEnumerable<Account?> StreamAsync(
+    IEnumerable<int> ids,
+    [EnumeratorCancellation] CancellationToken ct)
+{
+    foreach (var id in ids)
+    {
+        ct.ThrowIfCancellationRequested();
+        yield return await repo.GetByIdAsync(id);  // each yield flushes to the client
+    }
+}
+
+// Controller return type — ASP.NET Core streams the JSON array
+[HttpGet("stream")]
+public IAsyncEnumerable<object> Stream([FromQuery] string ids, CancellationToken ct)
+    => StreamCore(ParseIds(ids), ct);
+```
+
+**Java parallel (Project Reactor):**
+```java
+@GetMapping(produces = MediaType.APPLICATION_NDJSON_VALUE)
+public Flux<Account> stream() {
+    return Flux.fromIterable(ids).flatMap(id -> repo.findById(id));
+}
+```
+
+---
+
+## 3. ValueTask\<T\> — zero-allocation async
+
+```csharp
+// Hot path: returns synchronously from cache — NO heap allocation
+private async ValueTask<decimal?> GetCachedBalanceAsync(int id)
+{
+    if (_cache.TryGetValue(id, out var cached))
+        return cached;              // sync path: ValueTask wraps the value on the stack
+
+    var account = await db.GetByIdAsync(id);  // async path: allocates like Task<T>
+    _cache.TryAdd(id, account?.Balance ?? 0);
+    return account?.Balance;
+}
+```
+
+**When to use ValueTask vs Task:**
+- Use `Task<T>` by default.
+- Use `ValueTask<T>` only when profiling shows allocations matter (e.g. high-frequency hot paths like cache lookups, tight loops).
+
+---
+
+## 4. ReaderWriterLockSlim — concurrent reads, exclusive writes
+
+```csharp
+private static readonly ReaderWriterLockSlim _rw = new();
+private static readonly HashSet<int> _flagged = new();
+
+// Multiple threads can hold the read lock simultaneously
+void ReadSomething()
+{
+    _rw.EnterReadLock();
+    try   { _ = _flagged.Count; }
+    finally { _rw.ExitReadLock(); }
+}
+
+// Only one thread holds the write lock; all readers are excluded
+void WriteSomething(int id)
+{
+    _rw.EnterWriteLock();
+    try   { _flagged.Add(id); }
+    finally { _rw.ExitWriteLock(); }
+}
+```
+
+**Java parallel:**
+```java
+ReentrantReadWriteLock rw = new ReentrantReadWriteLock();
+rw.readLock().lock();  try { ... } finally { rw.readLock().unlock(); }
+rw.writeLock().lock(); try { ... } finally { rw.writeLock().unlock(); }
+```
+
+---
+
+## Project Structure (new / changed files)
+
+```
+Lesson/
+  Controllers/
+    ChannelController.cs  NEW  POST /advanced-concurrency/enqueue          (Channel<T> producer)
+                               GET  /advanced-concurrency/drain             (Channel<T> consumer)
+                               GET  /advanced-concurrency/stream?ids=1,2   (IAsyncEnumerable)
+                               GET  /advanced-concurrency/valuetask/{id}   (ValueTask cache)
+                               POST /advanced-concurrency/flag/{id}        (ReaderWriterLockSlim write)
+                               GET  /advanced-concurrency/flagged           (ReaderWriterLockSlim read)
+Lesson.Tests/
+  ChannelTests.cs         NEW  9 tests
+```
+
+---
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~ChannelTests"
+# 9 tests — all pass
+```
+
+---
+
+## Exercises
+
+1. Convert `ChannelController` to use an `IHostedService` background consumer that reads from the channel and logs each processed ID — this is the idiomatic producer/consumer pattern in ASP.NET Core.
+2. Add a `GET /advanced-concurrency/stream-live` endpoint backed by a `Channel<T>` that streams items as they are enqueued (using `ReadAllAsync`) — connect it to the `/enqueue` endpoint to build a live feed.
+3. Benchmark `ValueTask` vs `Task` on the cache-hit path using `BenchmarkDotNet`; confirm that `ValueTask` allocates ~0 bytes on the hot path.
+
 
 > **Branch:** `lesson/16-multithreading/b-intermediate`
 > **Prerequisites:** Lesson 16-A (async/await basics)
