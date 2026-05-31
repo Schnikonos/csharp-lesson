@@ -1,0 +1,30 @@
+replicaCount: 2
+
+image:
+  repository: banking-api
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  host: banking.local
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "256Mi"
+
+env:
+  ASPNETCORE_ENVIRONMENT: Production
+
+secrets:
+  dbPassword: ""  # Override with --set secrets.dbPassword=<value>

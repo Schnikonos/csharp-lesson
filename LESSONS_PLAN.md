@@ -330,14 +330,15 @@ Each part-branch is created **off the previous part** (`a → b → c`), so `git
 
 ---
 
-### Lesson 23 — Docker & docker-compose
-**Branches:** `lesson/23-docker/a-basic`  *(single part)*
+### Lesson 23 — Docker, docker-compose & Kubernetes
+**Branches:** `lesson/23-docker/a-basic` · `b-intermediate`
 
 | Part | Content |
 |------|---------|
 | **A - Basic** | Multi-stage `Dockerfile` for the ASP.NET Core app; `docker-compose.yml` with app + PostgreSQL + Redis + RabbitMQ; environment variable injection; `.dockerignore`; health-check `HEALTHCHECK` directive in Dockerfile; `docker compose up` walkthrough |
+| **B - Intermediate** | Kubernetes manifests (`k8s/`): `Deployment` (2 replicas, liveness/readiness probes, resource limits), `Service` (ClusterIP), `ConfigMap`, `Ingress` (nginx); Helm chart (`helm/banking-api/`): `Chart.yaml`, `values.yaml`, parameterised templates; `Secret` for credentials; YAML structure validated by `KubernetesManifestTests` |
 
-**Java parallels:** Maven `spring-boot:build-image` → `dotnet publish` with `--os linux`; Spring Boot Docker Compose support → same pattern in .NET 8+.
+**Java parallels:** Maven `spring-boot:build-image` → `dotnet publish` with `--os linux`; Spring Boot Docker Compose support → same pattern in .NET 8+; Helm `values.yaml` → Spring `application.yaml` profiles; `kubectl apply -f k8s/` → `kubectl` same.
 
 ---
 
