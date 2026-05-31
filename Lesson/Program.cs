@@ -175,6 +175,9 @@ builder.Services.AddScoped<Lesson.Infrastructure.AggregateUnitOfWork>();
 // Java parallel: Vavr Either<AppError, T> / Spring service returning Result<T>
 builder.Services.AddScoped<Lesson.ResultPattern.AccountResultService>();
 
+// ----- 22-B: Railway-oriented pipeline service -----
+builder.Services.AddScoped<Lesson.ResultPattern.AccountRopService>();
+
 // ----- 08-A + audit subscriber -----
 builder.Services.AddSingleton<Lesson.Events.DomainEventBus>();
 builder.Services.AddSingleton<Lesson.Subscribers.PaymentAuditSubscriber>();
