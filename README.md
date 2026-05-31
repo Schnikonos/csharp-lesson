@@ -1,4 +1,126 @@
-# Lesson 11-C — ASP.NET Core Data Protection API (the Jasypt equivalent)
+# Lesson 12-A — xUnit Basics: [Fact], [Theory], Arrange/Act/Assert
+
+> **Branch:** `lesson/12-unit-testing/a-basic`
+> **Prerequisites:** None (pure unit tests, no framework setup needed)
+
+---
+
+## What you will learn
+
+| Topic | C# xUnit | Java JUnit 5 |
+|---|---|---|
+| Single test | `[Fact]` | `@Test` |
+| Parameterised test | `[Theory]` + `[InlineData]` | `@ParameterizedTest` + `@ValueSource` / `@CsvSource` |
+| Assert equality | `Assert.Equal(expected, actual)` | `assertEquals(expected, actual)` |
+| Assert true/false | `Assert.True(...)` / `Assert.False(...)` | `assertTrue(...)` / `assertFalse(...)` |
+| Assert throws | `Assert.Throws<TEx>(() => ...)` | `assertThrows(Type.class, () -> ...)` |
+| Arrange/Act/Assert | Pattern — comment or blank-line separated sections | Same pattern in Java |
+| Test naming | `Method_Scenario_ExpectedResult` | Same convention |
+
+---
+
+## 1. The AAA pattern
+
+Every test follows three phases:
+
+```csharp
+[Fact]
+public void Deposit_PositiveAmount_IncreasesBalance()
+{
+    // Arrange — set up the objects under test
+    var account = new BankAccount { Balance = 100m };
+    var svc     = new BankAccountDomainService();
+
+    // Act — call the code being tested
+    svc.Deposit(account, 50m);
+
+    // Assert — verify the outcome
+    Assert.Equal(150m, account.Balance);
+}
+```
+
+**Java parallel:**
+```java
+@Test
+void deposit_positiveAmount_increasesBalance() {
+    // Arrange
+    var account = new BankAccount(100.0);
+    var svc     = new BankAccountDomainService();
+    // Act
+    svc.deposit(account, 50.0);
+    // Assert
+    assertEquals(150.0, account.getBalance());
+}
+```
+
+---
+
+## 2. [Theory] with [InlineData]
+
+Run the same test body with multiple input sets — no copy-paste.
+
+```csharp
+[Theory]
+[InlineData(0)]
+[InlineData(-1)]
+[InlineData(-100)]
+public void Deposit_NonPositiveAmount_Throws(decimal amount)
+{
+    var account = new BankAccount { Balance = 100m };
+    Assert.Throws<ArgumentOutOfRangeException>(() => svc.Deposit(account, amount));
+}
+```
+
+**Java parallel:**
+```java
+@ParameterizedTest
+@ValueSource(doubles = {0, -1, -100})
+void deposit_nonPositiveAmount_throws(double amount) {
+    assertThrows(IllegalArgumentException.class,
+        () -> svc.deposit(account, amount));
+}
+```
+
+---
+
+## 3. Pure unit tests vs integration tests
+
+| | Pure unit test (this lesson) | Integration test (12-C) |
+|---|---|---|
+| Speed | < 1 ms per test | 100 ms+ (DB, HTTP) |
+| Dependencies | None — created directly | DB, HTTP, DI container |
+| What you test | Business logic, algorithms | Wired-together components |
+| When to use | Domain rules, calculations, validations | Controller ? DB flow, auth, file IO |
+
+---
+
+## Project Structure (new / changed files)
+
+```
+Lesson/
+  Domain/
+    BankAccountDomainService.cs   NEW  Deposit, Withdraw, CanClose, interest calc
+Lesson.Tests/
+  BankAccountDomainTests.cs       NEW  18 tests (8 Fact + 10 Theory/InlineData)
+```
+
+---
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~BankAccountDomainTests"
+# 18 tests — all pass in < 200 ms
+```
+
+---
+
+## Exercises
+
+1. Add a `Transfer(from, to, amount)` method to `BankAccountDomainService` and write tests for: happy path, insufficient funds, negative amount.
+2. Add a `[MemberData]` test that reads test cases from a `public static IEnumerable<object[]>` property — useful when `[InlineData]` values are too complex (e.g. full objects).
+3. Add a test that verifies `GenerateAccountNumber` never produces duplicates when called with 100 sequential values.
+
 
 > **Branch:** `lesson/11-encryption/c-advanced`
 > **Prerequisites:** Lesson 11-B (AES, key/IV management)
