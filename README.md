@@ -1,4 +1,141 @@
-# Lesson 15-C — OpenTelemetry: Traces, Metrics, ActivitySource, and Health Checks
+# Lesson 16-A — Task, async/await Deep Dive, CancellationToken
+
+> **Branch:** `lesson/16-multithreading/a-basic`
+> **Prerequisites:** Lesson 15-C (OpenTelemetry)
+
+---
+
+## What you will learn
+
+| Topic | C# | Java |
+|---|---|---|
+| Async unit of work | `async Task<T>` method | `CompletableFuture<T>` |
+| Await a single task | `var r = await FooAsync()` | `future.get()` / `.join()` |
+| Fan-out, await all | `await Task.WhenAll(t1, t2, t3)` | `CompletableFuture.allOf(...)` |
+| Race, first wins | `await Task.WhenAny(t1, t2)` | `CompletableFuture.anyOf(...)` |
+| CPU-bound offload | `await Task.Run(() => ...)` | `CompletableFuture.supplyAsync(...)` |
+| Cooperative cancel | `CancellationToken ct` parameter | `Future.cancel()` / interrupt |
+| Avoid context capture | `.ConfigureAwait(false)` | N/A (no sync context in Java) |
+| Timeout pattern | `CancellationTokenSource(ms)` | `future.get(200, MILLISECONDS)` |
+
+---
+
+## 1. The async state machine
+
+```csharp
+// Every async method is compiled into a state machine.
+// "await" does NOT block a thread — it posts a continuation.
+public async Task<Account?> GetAsync(int id)
+{
+    // Thread A starts executing here
+    var account = await _repo.GetByIdAsync(id);  // <-- suspends, releases thread
+    // Thread B (possibly different) resumes here after IO completes
+    return account;
+}
+```
+
+**Java parallel:**
+```java
+CompletableFuture<Account> getAsync(int id) {
+    return CompletableFuture.supplyAsync(() -> repo.findById(id));
+}
+```
+
+---
+
+## 2. Task.WhenAll — concurrent fan-out
+
+```csharp
+var tasks   = ids.Select(id => repo.GetByIdAsync(id)).ToList();
+var results = await Task.WhenAll(tasks);
+// All tasks ran concurrently; results[] is in the same order as tasks[]
+```
+
+**Java parallel:**
+```java
+var futures = ids.stream().map(id -> CompletableFuture.supplyAsync(() -> repo.findById(id))).toList();
+CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+var results = futures.stream().map(CompletableFuture::join).toList();
+```
+
+---
+
+## 3. CancellationToken — cooperative cancellation
+
+```csharp
+// ASP.NET Core automatically cancels HttpContext.RequestAborted when the client disconnects.
+[HttpGet("accounts/{id:int}")]
+public async Task<IActionResult> Get(int id, CancellationToken ct)
+{
+    var account = await _repo.GetByIdAsync(id, ct);  // DB call respects cancellation
+    return Ok(account);
+}
+
+// Timeout: link two sources so either can cancel
+using var timeoutCts = new CancellationTokenSource(500);
+using var linked     = CancellationTokenSource.CreateLinkedTokenSource(
+                           HttpContext.RequestAborted, timeoutCts.Token);
+```
+
+---
+
+## 4. ConfigureAwait(false)
+
+```csharp
+// Library / service code — avoids unnecessarily capturing sync context
+var result = await SomeIoAsync().ConfigureAwait(false);
+
+// Controller code — safe to omit (ASP.NET Core has no sync context in .NET 5+)
+// but shown here as a teaching point
+```
+
+---
+
+## 5. Task.Run — offloading CPU work
+
+```csharp
+// Only for genuinely CPU-bound work (PDF, image processing, crypto).
+// For IO work (DB, HTTP), use async IO methods directly — Task.Run adds no value.
+var sum = await Task.Run(() => {
+    long acc = 0;
+    for (var i = 0; i < n; i++) acc += i;
+    return acc;
+});
+```
+
+---
+
+## Project Structure (new / changed files)
+
+```
+Lesson/
+  Controllers/
+    ConcurrencyDemoController.cs  NEW  GET /concurrency-demo/accounts/{id}
+                                       GET /concurrency-demo/batch?ids=1,2,3     (WhenAll)
+                                       GET /concurrency-demo/fastest?ids=1,2,3   (WhenAny)
+                                       GET /concurrency-demo/with-timeout/{id}   (deadline race)
+                                       POST /concurrency-demo/cpu-work           (Task.Run)
+Lesson.Tests/
+  ConcurrencyDemoTests.cs         NEW  9 async Task test methods
+```
+
+---
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~ConcurrencyDemoTests"
+# 9 tests — all pass
+```
+
+---
+
+## Exercises
+
+1. Change `BatchFetch` to use `Parallel.ForEachAsync` (introduced in .NET 6) instead of `Task.WhenAll` and observe the difference in thread pool usage.
+2. Add a `[HttpGet("sequential")]` endpoint that fetches the same N accounts sequentially (one `await` per account) — benchmark it against the `batch` (WhenAll) endpoint with the same IDs and compare elapsed time.
+3. Pass a `CancellationToken` into `GetByIdAsync` calls once you've added it to the repository interface, and verify the DB query is aborted when the client disconnects.
+
 
 > **Branch:** `lesson/15-logging/c-advanced`
 > **Prerequisites:** Lesson 15-B (Serilog)
