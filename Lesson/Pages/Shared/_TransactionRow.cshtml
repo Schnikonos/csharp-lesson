@@ -1,0 +1,8 @@
+@* Partial view: renders a single transaction row *@
+@model Lesson.Pages.TransactionViewModel
+
+<tr>
+    <td>@Model.Date</td>
+    <td>@Model.Type</td>
+    <td>@Model.Currency @Model.Amount.ToString("0.00")</td>
+</tr>

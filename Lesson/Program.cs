@@ -189,6 +189,12 @@ builder.Services.AddControllers(options =>
     // ----- 06-B: Register action filters globally -----
     options.Filters.Add<CorrelationIdFilter>();
 });
+
+// ----- 26-B: Razor Pages -----
+// AddRazorPages registers the Razor Pages runtime, view engine, tag helpers, and anti-forgery.
+// Java parallel: @EnableWebMvc + Thymeleaf auto-configuration
+builder.Services.AddRazorPages();
+
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
@@ -242,6 +248,8 @@ app.UseStaticFiles();
 
 app.UseAuthorization();
 app.MapControllers();
+// ----- 26-B: map Razor Pages routes (/Statement, etc.) -----
+app.MapRazorPages();
 
 // ----- 26-A: SPA fallback -----
 // Any route not matched by a controller falls back to index.html so the SPA router takes over.
