@@ -1,4 +1,113 @@
-# Lesson 12-A — xUnit Basics: [Fact], [Theory], Arrange/Act/Assert
+# Lesson 12-B — Moq + FluentAssertions
+
+> **Branch:** `lesson/12-unit-testing/b-intermediate`
+> **Prerequisites:** Lesson 12-A (xUnit basics, AAA pattern)
+
+---
+
+## What you will learn
+
+| Topic | C# | Java (Mockito) |
+|---|---|---|
+| Create mock | `new Mock<IFoo>()` | `Mockito.mock(IFoo.class)` |
+| Define return value | `.Setup(m => m.Get(1)).ReturnsAsync(x)` | `when(m.get(1)).thenReturn(x)` |
+| Wildcard matcher | `It.IsAny<int>()` | `any(Integer.class)` |
+| Verify call count | `.Verify(m => m.Get(1), Times.Once())` | `verify(m, times(1)).get(1)` |
+| Verify never called | `Times.Never()` | `verify(m, never()).get(0)` |
+| Fluent equality | `result.Should().Be(42)` | `assertThat(result).isEqualTo(42)` |
+| Null check | `.Should().BeNull()` / `.NotBeNull()` | `.isNull()` / `.isNotNull()` |
+| Collection count | `.Should().HaveCount(3)` | `hasSize(3)` |
+| Exception assertion | `act.Should().Throw<Ex>().WithMessage(...)` | `assertThatThrownBy(...).isInstanceOf(...).hasMessage(...)` |
+
+---
+
+## 1. Mocking a repository
+
+```csharp
+var mock = new Mock<IAccountRepository>();
+
+// Define what the mock returns
+mock.Setup(r => r.GetByIdAsync(42))
+    .ReturnsAsync(new BankAccount { Id = 42, Balance = 1_200m });
+
+// Use .Object to get the real interface instance
+var repo   = mock.Object;
+var result = await repo.GetByIdAsync(42);
+
+result.Should().NotBeNull();
+result!.Balance.Should().Be(1_200m);
+```
+
+**Java parallel:**
+```java
+var mock = Mockito.mock(IAccountRepository.class);
+when(mock.getByIdAsync(42)).thenReturn(Optional.of(account));
+var result = mock.getByIdAsync(42).get();
+assertThat(result.getBalance()).isEqualTo(1200.0);
+```
+
+---
+
+## 2. Verifying interactions
+
+```csharp
+mock.Verify(r => r.AddAsync(account), Times.Once());    // must be called exactly once
+mock.Verify(r => r.GetByIdAsync(0),   Times.Never());   // must NOT be called with 0
+```
+
+**Java parallel:**
+```java
+verify(mock, times(1)).save(account);
+verify(mock, never()).findById(0);
+```
+
+---
+
+## 3. FluentAssertions
+
+Standard `Assert.Equal(a, b)` is inside-out (expected first). FluentAssertions reads left-to-right:
+
+```csharp
+account.Balance.Should().Be(1_500m, because: "500 + 1000 = 1500");
+
+list.Should().HaveCount(3)
+    .And.Contain(a => a.Id == 2)
+    .And.AllSatisfy(a => a.IsActive.Should().BeTrue());
+
+var act = () => svc.Withdraw(account, 999m);
+act.Should().Throw<InvalidOperationException>()
+   .WithMessage("Insufficient funds.");
+```
+
+> **Note:** FluentAssertions 8.x requires a paid license for commercial use. For open-source and learning projects it is free. An alternative is `Shouldly` (MIT licensed).
+
+---
+
+## Project Structure (new / changed files)
+
+```
+Lesson.Tests/
+  MockedAccountRepositoryTests.cs  NEW  10 tests with Moq + FluentAssertions
+Lesson.Tests/Lesson.Tests.csproj        + Moq 4.20.72, FluentAssertions 8.4.0
+```
+
+---
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~MockedAccountRepositoryTests"
+# 10 tests — all pass
+```
+
+---
+
+## Exercises
+
+1. Mock `IUnitOfWork` and write a test that calls `CommitAsync` twice — verify with `Times.Exactly(2)`.
+2. Use `mock.SetupSequence(...)` to return different values on successive calls to `GetByIdAsync` — model a retry scenario.
+3. Replace the `FluentAssertions` package with `Shouldly` and compare the assertion API.
+
 
 > **Branch:** `lesson/12-unit-testing/a-basic`
 > **Prerequisites:** None (pure unit tests, no framework setup needed)
