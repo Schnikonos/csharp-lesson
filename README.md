@@ -1,4 +1,139 @@
-# Lesson 14-B — IDistributedCache + Redis: cache-aside with JSON serialization
+# Lesson 14-C — Output Caching, [ResponseCache], and Cache Stampede Prevention
+
+> **Branch:** `lesson/14-caching/c-advanced`
+> **Prerequisites:** Lesson 14-B (IDistributedCache)
+
+---
+
+## What you will learn
+
+| Topic | C# .NET 7+ | Java Spring |
+|---|---|---|
+| Client-hint headers | `[ResponseCache(Duration = 30)]` ? `Cache-Control: max-age=30` | `@RequestMapping` + `@CacheControl` / HttpServletResponse headers |
+| Server-side response cache | `[OutputCache(Duration = 60)]` | `@Cacheable` on controller method |
+| Vary by query param | `[OutputCache(VaryByQueryKeys = ["type"])]` | `@Cacheable(key = "#type")` |
+| Named policy | `[OutputCache(PolicyName = "Lock")]` | `@Cacheable(sync = true)` |
+| Register pipeline | `AddOutputCache()`, `UseOutputCache()` | Spring Cache auto-config |
+| Anti-stampede | `opts.AddPolicy("Lock", pb => pb.SetLocking(true))` | `@Cacheable(sync = true)` |
+
+---
+
+## 1. [ResponseCache] — tells clients and CDNs to cache
+
+```csharp
+[HttpGet("accounts/{id}")]
+[ResponseCache(Duration = 30, Location = ResponseCacheLocation.Any)]
+public IActionResult Get(int id) { ... }
+// ? HTTP response includes: Cache-Control: public, max-age=30
+```
+
+No server memory is used. The browser (or CDN) caches the response for 30 seconds.  
+The server still receives the request if the client's cache is cold.
+
+**Java parallel:** Set `Cache-Control` header manually in the response, or use Spring's `@RequestMapping` + `WebContentInterceptor`.
+
+---
+
+## 2. [OutputCache] — server stores the full response
+
+```csharp
+[HttpGet("accounts/{id}")]
+[OutputCache(Duration = 60)]
+public async Task<IActionResult> Get(int id) { ... }
+// First request ? executes controller, stores response in server memory
+// Subsequent requests within 60 s ? served from server cache, controller NOT called
+```
+
+**Java parallel:**
+```java
+@Cacheable(value = "output", key = "#id")
+@GetMapping("/accounts/{id}")
+public ResponseEntity<Account> get(@PathVariable int id) { ... }
+```
+
+---
+
+## 3. VaryByQueryKeys
+
+Different query-string combinations produce **separate** cache entries:
+
+```csharp
+[OutputCache(Duration = 30, VaryByQueryKeys = ["type", "page"])]
+public IActionResult List([FromQuery] string? type, [FromQuery] int page) { ... }
+// /list?type=Savings&page=1  ? own cache entry
+// /list?type=Checking&page=1 ? separate cache entry
+```
+
+---
+
+## 4. Cache stampede prevention with the Lock policy
+
+When a popular entry expires, hundreds of simultaneous requests can all hit the DB at once.  
+The `Lock` policy serialises concurrent requests for the **same key** — only one hits the origin; others wait and then receive the cached response.
+
+```csharp
+// Register in Program.cs
+builder.Services.AddOutputCache(opts =>
+    opts.AddPolicy("Lock", pb => pb.SetLocking(true)));
+
+// Apply on endpoint
+[OutputCache(PolicyName = "Lock")]
+public async Task<IActionResult> AntiStampede(int id) { ... }
+```
+
+**Java parallel:**
+```java
+@Cacheable(value = "safe", key = "#id", sync = true)
+public Account getById(int id) { ... }
+```
+
+---
+
+## 5. Pipeline order
+
+```
+UseExceptionHandler()
+UseResponseCaching()   ? [ResponseCache] middleware — adds headers
+UseOutputCache()       ? [OutputCache] middleware — serves/stores responses
+UseAuthentication()
+UseAuthorization()
+MapControllers()
+```
+
+---
+
+## Project Structure (new / changed files)
+
+```
+Lesson/
+  Controllers/
+    OutputCacheController.cs  NEW  GET /output-cache/headers/{id} ([ResponseCache]),
+                                   GET /output-cache/server/{id} ([OutputCache]),
+                                   GET /output-cache/server/list ([OutputCache] VaryByQuery),
+                                   GET /output-cache/server/safe/{id} (Lock policy)
+  Program.cs                       + AddOutputCache (Lock policy), AddResponseCaching,
+                                   UseResponseCaching(), UseOutputCache()
+Lesson.Tests/
+  OutputCacheTests.cs         NEW  4 integration tests
+```
+
+---
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~OutputCacheTests"
+# 4 tests — all pass
+```
+
+---
+
+## Exercises
+
+1. Add a `POST /output-cache/server/{id}/invalidate` endpoint that uses `IOutputCacheStore` to evict a specific entry by tag — you'll need to add `.Tag("account")` to the cache policy and call `store.EvictByTagAsync("account", ct)`.
+2. Add a test that asserts `GET /output-cache/server/{id}` is **not** served from cache when the `Authorization` header differs (hint: add `VaryByHeader = ["Authorization"]`).
+3. Compare benchmark results (via a simple `for` loop) between an uncached endpoint and a `[OutputCache]` endpoint — measure the median response time difference.
+
 
 > **Branch:** `lesson/14-caching/b-intermediate`
 > **Prerequisites:** Lesson 14-A (IMemoryCache)

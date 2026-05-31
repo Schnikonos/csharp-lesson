@@ -184,7 +184,16 @@ if (builder.Environment.IsDevelopment())
 // builder.Services.AddStackExchangeRedisCache(o =>
 //     o.Configuration = builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379");
 
-// ----- 08-C: Channel<T> outbox queue + background consumer -----
+// ----- 14-C: Output caching (.NET 7+) -----
+// AddOutputCache registers the output cache service and its policy registry.
+// Java parallel: @EnableCaching + CaffeineCacheManager (server-side response cache)
+builder.Services.AddOutputCache(opts =>
+{
+    // "Lock" policy — serialises concurrent requests for the same cache key,
+    // preventing cache stampedes (dog-piling).
+    opts.AddPolicy("Lock", pb => pb.SetLocking(true));
+});
+builder.Services.AddResponseCaching();      // needed for [ResponseCache] HTTP headers
 builder.Services.AddSingleton<OutboxChannel>();
 builder.Services.AddSingleton<OutboxConsumerService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<OutboxConsumerService>());
@@ -256,6 +265,9 @@ app.UseExceptionHandler();
 app.UseHttpsRedirection();
 // ----- 13-A: Auth middleware must come AFTER exception handler, BEFORE MapControllers -----
 app.UseAuthentication();
+// ----- 14-C: Output/response caching middleware -----
+app.UseResponseCaching();
+app.UseOutputCache();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();
