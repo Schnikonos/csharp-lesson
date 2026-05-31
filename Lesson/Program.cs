@@ -145,6 +145,19 @@ builder.Services.AddTransient(
     typeof(IPipelineBehavior<,>),
     typeof(ValidationBehavior<,>));
 
+// ----- 18-B: Logging pipeline behaviour -----
+// LoggingBehavior wraps every handler and logs the request name and elapsed time.
+// Registered AFTER ValidationBehavior so execution order is:
+//   LoggingBehavior (outermost) ? ValidationBehavior ? Handler
+// Java parallel: Spring AOP @Around advice ordering via @Order
+builder.Services.AddTransient(
+    typeof(IPipelineBehavior<,>),
+    typeof(LoggingBehavior<,>));
+// TransactionBehavior — inner; only fires for ICommand<T> requests
+builder.Services.AddTransient(
+    typeof(IPipelineBehavior<,>),
+    typeof(TransactionBehavior<,>));
+
 // ----- 08-A: Domain event bus + audit subscriber -----
 builder.Services.AddSingleton<Lesson.Events.DomainEventBus>();
 builder.Services.AddSingleton<Lesson.Subscribers.PaymentAuditSubscriber>();
