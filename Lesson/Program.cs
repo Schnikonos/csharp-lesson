@@ -169,6 +169,11 @@ builder.Services.AddScoped<IAuthorizationHandler, AccountOwnerHandler>();
 // ----- 13-C: Refresh token store (Singleton — lives for app lifetime) -----
 builder.Services.AddSingleton<TokenStore>();
 
+// ----- 14-A: IMemoryCache -----
+// AddMemoryCache registers IMemoryCache as a Singleton.
+// Java parallel: @EnableCaching + Spring CacheManager
+builder.Services.AddMemoryCache();
+
 // ----- 08-C: Channel<T> outbox queue + background consumer -----
 builder.Services.AddSingleton<OutboxChannel>();
 builder.Services.AddSingleton<OutboxConsumerService>();

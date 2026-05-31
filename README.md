@@ -1,4 +1,133 @@
-# Lesson 13-C — Refresh Tokens + Token Revocation
+# Lesson 14-A — IMemoryCache: cache-aside, expiry, invalidation
+
+> **Branch:** `lesson/14-caching/a-basic`
+> **Prerequisites:** Lesson 13-C (auth, DI patterns)
+
+---
+
+## What you will learn
+
+| Topic | C# .NET | Java Spring |
+|---|---|---|
+| Enable caching | `AddMemoryCache()` | `@EnableCaching` |
+| Cache-aside read | `cache.GetOrCreateAsync(key, factory)` | `@Cacheable(value = "...", key = "#id")` |
+| Manual set | `cache.Set(key, value, options)` | `@CachePut` |
+| Manual get | `cache.TryGetValue(key, out T value)` | `cacheManager.getCache(...).get(key)` |
+| Hard expiry | `AbsoluteExpirationRelativeToNow` | `@Cacheable(... expire = 300)` |
+| Sliding expiry | `SlidingExpiration` | Caffeine `expireAfterAccess` |
+| Invalidate on write | `cache.Remove(key)` | `@CacheEvict(value = "...", key = "#id")` |
+| Evict all | `cache.Remove(allKey)` | `@CacheEvict(value = "...", allEntries = true)` |
+
+---
+
+## 1. Registering IMemoryCache
+
+```csharp
+// Program.cs
+builder.Services.AddMemoryCache();
+// IMemoryCache is registered as Singleton — safe to inject into Scoped controllers
+```
+
+**Java parallel:**
+```java
+@SpringBootApplication
+@EnableCaching       // activates Spring's proxy-based cache infrastructure
+public class App { ... }
+```
+
+---
+
+## 2. The cache-aside pattern
+
+```csharp
+// Try cache first; on miss, load from DB and store result
+var account = await cache.GetOrCreateAsync(
+    $"account:{id}",
+    async entry =>
+    {
+        entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
+        entry.SlidingExpiration               = TimeSpan.FromMinutes(2);
+        return await uow.Accounts.GetByIdAsync(id);
+    });
+```
+
+The factory lambda only runs on a **cache miss** — identical to `@Cacheable` in Spring.
+
+**Java parallel:**
+```java
+@Cacheable(value = "accounts", key = "#id")
+public Optional<BankAccount> getById(int id) {
+    return repo.findById(id);
+}
+```
+
+---
+
+## 3. Absolute vs sliding expiry
+
+| | Absolute | Sliding |
+|---|---|---|
+| Resets on access? | No — hard deadline | Yes — deadline resets each time |
+| Use case | Data that must refresh on schedule | Session/user data that should expire only after inactivity |
+| C# | `AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)` | `SlidingExpiration = TimeSpan.FromMinutes(2)` |
+| Both at once? | Yes — sliding resets, but absolute cap overrides | |
+
+---
+
+## 4. Invalidation on write
+
+```csharp
+[HttpPost("accounts")]
+public async Task<IActionResult> Create(CreateAccountRequest request)
+{
+    await uow.Accounts.AddAsync(newAccount);
+    await uow.CommitAsync();               // persist BEFORE touching cache
+
+    cache.Remove("accounts:all");          // evict stale list entry
+
+    return CreatedAtAction(...);
+}
+```
+
+**Java parallel:**
+```java
+@CacheEvict(value = "accounts", allEntries = true)
+public BankAccount create(CreateAccountRequest request) { ... }
+```
+
+---
+
+## Project Structure (new / changed files)
+
+```
+Lesson/
+  Controllers/
+    MemoryCacheController.cs  NEW  GET /cache-demo/accounts/{id},
+                                   GET /cache-demo/accounts,
+                                   POST /cache-demo/accounts,
+                                   DELETE /cache-demo/accounts/{id}/cache
+  Program.cs                        + AddMemoryCache()
+Lesson.Tests/
+  MemoryCacheTests.cs         NEW  4 integration tests
+```
+
+---
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~MemoryCacheTests"
+# 4 tests — all pass
+```
+
+---
+
+## Exercises
+
+1. Add a `GET /cache-demo/accounts/{id}/cache-info` endpoint that returns whether the entry is currently in cache (hint: `cache.TryGetValue` returns `true`/`false`).
+2. Change the sliding expiry to 5 seconds and write a test that asserts the value is evicted after 6 seconds.
+3. Add `MemoryCacheEntryOptions.RegisterPostEvictionCallback` to log when and why an entry was evicted (`EvictionReason.Expired`, `EvictionReason.Removed`, etc.).
+
 
 > **Branch:** `lesson/13-auth-jwt/c-advanced`
 > **Prerequisites:** Lesson 13-B (role-based auth, `IAuthorizationHandler`)
