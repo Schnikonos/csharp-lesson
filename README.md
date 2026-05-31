@@ -1,4 +1,120 @@
-# Lesson 13-B — Role-based Authorization + Custom IAuthorizationHandler
+# Lesson 13-C — Refresh Tokens + Token Revocation
+
+> **Branch:** `lesson/13-auth-jwt/c-advanced`
+> **Prerequisites:** Lesson 13-B (role-based auth, `IAuthorizationHandler`)
+
+---
+
+## What you will learn
+
+| Topic | C# (manual) | Java Spring OAuth2 |
+|---|---|---|
+| Refresh token issuance | `RandomNumberGenerator.Fill(bytes)` ? Base64 | Handled by Spring Authorization Server |
+| Single-use refresh token | Consumed on use (`TryConsume` removes from store) | `TokenStore` / `JdbcTokenStore` |
+| Token revocation | `POST /auth/token/revoke` ? removes from store | `/oauth2/revoke` endpoint |
+| Store design | In-memory `Dictionary<string, (Username, Role, ExpiresAt)>` | `oauth2_access_token` DB table |
+| Rotation | Each refresh issues a new access + refresh pair | Configurable with `TokenSettings` |
+
+---
+
+## 1. Why refresh tokens?
+
+Access tokens are short-lived (e.g. 1 hour) to limit damage if stolen. Rather than forcing re-login every hour, a long-lived *refresh token* lets the client silently obtain a new access token.
+
+```
+Client                        Server
+  ? POST /auth/token/login ???? validates credentials
+  ???? { accessToken, refreshToken }
+  ?                            ?  (1 hour later, access token expires)
+  ? POST /auth/token/refresh ??? validates refresh token
+  ???? { new accessToken, new refreshToken }
+  ? POST /auth/token/revoke ???? removes refresh token from store
+```
+
+---
+
+## 2. Generating a secure refresh token
+
+```csharp
+var bytes = new byte[32];
+RandomNumberGenerator.Fill(bytes);      // cryptographically secure
+return Convert.ToBase64String(bytes);   // 44-char opaque token
+```
+
+**Java parallel:**
+```java
+var bytes = new byte[32];
+new SecureRandom().nextBytes(bytes);
+return Base64.getUrlEncoder().encodeToString(bytes);
+```
+
+---
+
+## 3. Single-use rotation
+
+On refresh, the server removes the old token and issues a brand-new pair. If an attacker steals a refresh token and uses it first, the legitimate client's next refresh will fail — raising an alert.
+
+```csharp
+public bool TryConsume(string token, out string? username, out string? role)
+{
+    if (!_tokens.TryGetValue(token, out var entry) || entry.ExpiresAt < DateTime.UtcNow)
+    { username = role = null; return false; }
+    _tokens.Remove(token);   // single-use
+    ...
+}
+```
+
+---
+
+## 4. Revocation
+
+```csharp
+[HttpPost("revoke")]
+[Authorize]
+public IActionResult Revoke([FromBody] RevokeRequest request)
+{
+    store.Revoke(request.RefreshToken);
+    return NoContent();
+}
+```
+
+In production, set a `Revoked = true` flag in DB rather than deleting (audit trail).
+
+---
+
+## Project Structure (new / changed files)
+
+```
+Lesson/
+  Controllers/
+    RefreshTokenController.cs  NEW  POST /auth/token/login (returns pair),
+                                    POST /auth/token/refresh (rotate),
+                                    POST /auth/token/revoke (invalidate),
+                                    TokenStore, RefreshRequest, RevokeRequest,
+                                    TokenPairResponse
+  Program.cs                        + AddSingleton<TokenStore>
+Lesson.Tests/
+  RefreshTokenTests.cs         NEW  6 integration tests (login, refresh, single-use,
+                                    revoke, unauthenticated revoke attempt)
+```
+
+---
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~RefreshTokenTests"
+# 6 tests — all pass
+```
+
+---
+
+## Exercises
+
+1. Persist `TokenStore` to SQLite — add a `RefreshTokens` table with EF Core, replacing the in-memory dictionary.
+2. Add an `AbsoluteExpiry` check: if the original login was more than 30 days ago, force re-login even if the refresh token is still technically valid.
+3. Integrate a sliding-expiry: each successful refresh resets the 7-day window so active users never get logged out.
+
 
 > **Branch:** `lesson/13-auth-jwt/b-intermediate`
 > **Prerequisites:** Lesson 13-A (JWT bearer setup)

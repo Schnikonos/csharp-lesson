@@ -166,6 +166,9 @@ builder.Services.AddAuthorization(options =>
         policy.Requirements.Add(new AccountOwnerRequirement())));
 builder.Services.AddScoped<IAuthorizationHandler, AccountOwnerHandler>();
 
+// ----- 13-C: Refresh token store (Singleton — lives for app lifetime) -----
+builder.Services.AddSingleton<TokenStore>();
+
 // ----- 08-C: Channel<T> outbox queue + background consumer -----
 builder.Services.AddSingleton<OutboxChannel>();
 builder.Services.AddSingleton<OutboxConsumerService>();
