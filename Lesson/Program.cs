@@ -170,6 +170,11 @@ builder.Services.AddScoped<Lesson.Domain.IAggregateRepository, Lesson.Infrastruc
 // Java parallel: @TransactionalEventListener(phase = AFTER_COMMIT)
 builder.Services.AddScoped<Lesson.Infrastructure.AggregateUnitOfWork>();
 
+// ----- 22-A: Result Pattern service (ErrorOr) -----
+// Service returns ErrorOr<T> instead of throwing exceptions.
+// Java parallel: Vavr Either<AppError, T> / Spring service returning Result<T>
+builder.Services.AddScoped<Lesson.ResultPattern.AccountResultService>();
+
 // ----- 08-A + audit subscriber -----
 builder.Services.AddSingleton<Lesson.Events.DomainEventBus>();
 builder.Services.AddSingleton<Lesson.Subscribers.PaymentAuditSubscriber>();
