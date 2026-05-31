@@ -1,4 +1,125 @@
-# Lesson 14-C — Output Caching, [ResponseCache], and Cache Stampede Prevention
+# Lesson 15-A — Structured Logging with ILogger&lt;T&gt;
+
+> **Branch:** `lesson/15-logging/a-basic`
+> **Prerequisites:** Lesson 14-C (caching)
+
+---
+
+## What you will learn
+
+| Topic | C# ILogger&lt;T&gt; | Java SLF4J / Log4j2 |
+|---|---|---|
+| Get logger | Injected via DI constructor | `LoggerFactory.getLogger(getClass())` |
+| Log levels | `Trace Debug Info Warn Error Critical` | `TRACE DEBUG INFO WARN ERROR FATAL` |
+| Message template | `LogInformation("Account {AccountId}", id)` | `logger.info("Account {}", id)` |
+| Structured property | `{AccountId}` stored as named field | MDC / `%X{accountId}` in pattern |
+| Log scope | `logger.BeginScope(dictionary)` | `MDC.put(key, value)` / `ThreadContext` |
+| Minimum level config | `"Logging:LogLevel:Default": "Information"` | `<Logger level="INFO">` / `logging.level.root=INFO` |
+
+---
+
+## 1. Message templates — why not string interpolation?
+
+```csharp
+// ? Correct — {AccountId} is a named property
+logger.LogInformation("Fetching account {AccountId}", id);
+
+// ? Wrong — collapses structure into a plain string
+logger.LogInformation($"Fetching account {id}");
+```
+
+With a structured sink (Seq, Elastic, Application Insights) the named property is stored separately and becomes queryable: `AccountId == 42`. String interpolation destroys this.
+
+**Java parallel:**
+```java
+// SLF4J uses {} placeholders — NOT string format
+logger.info("Fetching account {}", id);
+// MDC for ambient context
+MDC.put("accountId", String.valueOf(id));
+```
+
+---
+
+## 2. Log levels
+
+| Level | When to use |
+|---|---|
+| `Trace` | Extremely detailed — byte-level, loop-level (usually disabled) |
+| `Debug` | Developer diagnostics — entry/exit of methods |
+| `Information` | Normal flow — request started, record created |
+| `Warning` | Recoverable anomaly — not found, retry triggered |
+| `Error` | Operation failed — exception caught, DB write failed |
+| `Critical` | System-wide failure — app cannot continue, data corruption |
+
+Configure minimum level in `appsettings.json`:
+```json
+"Logging": {
+  "LogLevel": {
+    "Default": "Information",
+    "Microsoft.AspNetCore": "Warning",
+    "Microsoft.EntityFrameworkCore.Database.Command": "Warning"
+  }
+}
+```
+
+---
+
+## 3. Log scopes — ambient context
+
+```csharp
+using (logger.BeginScope(new Dictionary<string, object>
+{
+    ["TransferId"] = Guid.NewGuid(),
+    ["From"]       = request.From,
+    ["To"]         = request.To,
+}))
+{
+    logger.LogInformation("Starting transfer of {Amount}", request.Amount);
+    // All log entries within this block include TransferId, From, To
+}
+```
+
+**Java parallel:**
+```java
+MDC.put("transferId", UUID.randomUUID().toString());
+try {
+    log.info("Starting transfer of {}", amount);
+} finally {
+    MDC.clear();
+}
+```
+
+---
+
+## Project Structure (new / changed files)
+
+```
+Lesson/
+  Controllers/
+    LoggingDemoController.cs  NEW  GET /logging-demo/accounts/{id},
+                                   POST /logging-demo/transfer (log scope),
+                                   GET /logging-demo/levels
+Lesson.Tests/
+  LoggingDemoTests.cs         NEW  5 integration tests
+```
+
+---
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~LoggingDemoTests"
+# 5 tests — all pass
+```
+
+---
+
+## Exercises
+
+1. Change `appsettings.Development.json` to set `"Lesson.Controllers": "Warning"` and run the app — verify the `Information` messages from `LoggingDemoController` are suppressed.
+2. Add an `EventId` to a log call: `logger.LogInformation(new EventId(1001, "TransferStarted"), "Transfer {Amount}", amount)` — this lets you filter by event in structured sinks.
+3. Replace `BeginScope(dictionary)` with `BeginScope("Processing transfer {TransferId}", id)` — note how the format differs from the dictionary approach and when each is preferred.
+
 
 > **Branch:** `lesson/14-caching/c-advanced`
 > **Prerequisites:** Lesson 14-B (IDistributedCache)
