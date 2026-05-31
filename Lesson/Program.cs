@@ -44,8 +44,23 @@ using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Quartz;
+using Serilog;
+using Serilog.Context;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ----- 15-B: Serilog -----
+// UseSerilog replaces the built-in Microsoft.Extensions.Logging pipeline.
+// ReadFrom.Configuration picks up the "Serilog" section from appsettings.json:
+//   - MinimumLevel, WriteTo (Console/File/Seq), Enrich.FromLogContext
+// Enrich.FromLogContext picks up properties pushed via LogContext.PushProperty (correlation ID).
+// Java parallel: Logback + logback.xml configured via application.properties
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .Enrich.FromLogContext()
+    .CreateLogger();
+
+builder.Host.UseSerilog();
 
 // ----- Options carried from Lesson 02 -----
 builder.Services
@@ -232,6 +247,10 @@ builder.Services.AddControllers(options =>
     // ----- 06-B: Register action filters globally -----
     options.Filters.Add<CorrelationIdFilter>();
 });
+// ----- 15-B: IHttpContextAccessor — needed by SerilogDemoController -----
+// AddHttpContextAccessor registers IHttpContextAccessor as a Singleton.
+// Java parallel: @RequestScope beans / HttpServletRequest injection
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
@@ -254,9 +273,13 @@ app.MapGet("/minimal/secure", () => Results.Ok(new { secret = "you have the key!
    .AddEndpointFilter(new ApiKeyEndpointFilter("lesson06"));
 
 // ----- 06-A: Middleware pipeline — ORDER MATTERS -----
-// ResponseHeaderMiddleware wraps everything below it.
 app.UseMiddleware<ResponseHeaderMiddleware>();
-// RequestLoggingMiddleware logs all requests that pass through.
+// ----- 15-B: Serilog request logging -----
+// UseSerilogRequestLogging replaces the verbose ASP.NET hosting request logs with a
+// single structured entry per request (method, path, status, elapsed).
+// It must come BEFORE UseRouting/auth/controllers to capture the full request.
+// Java parallel: logback-access / spring-boot-starter-actuator access-log
+app.UseSerilogRequestLogging();
 app.UseMiddleware<RequestLoggingMiddleware>();
 
 // ----- 07-B: Global exception handler (must come early so it catches all unhandled errors) -----

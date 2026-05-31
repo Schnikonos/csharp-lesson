@@ -1,4 +1,136 @@
-# Lesson 15-A — Structured Logging with ILogger&lt;T&gt;
+# Lesson 15-B — Serilog: Sinks, Enrichers, and Correlation ID
+
+> **Branch:** `lesson/15-logging/b-intermediate`
+> **Prerequisites:** Lesson 15-A (ILogger&lt;T&gt; basics)
+
+---
+
+## What you will learn
+
+| Topic | Serilog (.NET) | Java (Logback / Log4j2) |
+|---|---|---|
+| Replace default logging | `builder.Host.UseSerilog()` | `logback.xml` / `log4j2.xml` |
+| Console sink | `WriteTo.Console()` | `ConsoleAppender` |
+| File sink (rolling) | `WriteTo.File(rollingInterval: Day)` | `RollingFileAppender` |
+| Structured properties | `{CorrelationId}` stored in JSON | MDC key stored in pattern |
+| Ambient context | `LogContext.PushProperty(key, val)` | `MDC.put(key, val)` |
+| Per-request logging | `UseSerilogRequestLogging()` | `logback-access` / Actuator access log |
+| HTTP context in services | `IHttpContextAccessor` | `@RequestScope` / `HttpServletRequest` |
+
+---
+
+## 1. Wiring Serilog
+
+```csharp
+// Program.cs
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)  // reads "Serilog" section
+    .Enrich.FromLogContext()                          // picks up PushProperty
+    .CreateLogger();
+
+builder.Host.UseSerilog();  // replaces Microsoft.Extensions.Logging
+```
+
+**Java parallel:**
+```xml
+<!-- logback.xml — replaces java.util.logging / commons-logging -->
+<configuration>
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">...</appender>
+  <root level="INFO"><appender-ref ref="CONSOLE"/></root>
+</configuration>
+```
+
+---
+
+## 2. Correlation ID propagation
+
+```csharp
+// Push a property onto the current async context —
+// all log entries emitted below this line carry CorrelationId.
+using (LogContext.PushProperty("CorrelationId", correlationId))
+{
+    logger.LogInformation("Fetching account {AccountId}", id);
+    // ? {Timestamp: ..., CorrelationId: "abc123", AccountId: 42, ...}
+}
+```
+
+**Java parallel (MDC):**
+```java
+MDC.put("correlationId", correlationId);
+try {
+    log.info("Fetching account {}", id);
+} finally {
+    MDC.clear();
+}
+```
+
+---
+
+## 3. Serilog configuration (appsettings.json)
+
+```json
+"Serilog": {
+  "MinimumLevel": {
+    "Default": "Information",
+    "Override": {
+      "Microsoft.AspNetCore": "Warning",
+      "Microsoft.EntityFrameworkCore.Database.Command": "Warning"
+    }
+  },
+  "WriteTo": [
+    { "Name": "Console" },
+    { "Name": "File", "Args": { "path": "logs/banking-.log", "rollingInterval": "Day" } }
+  ],
+  "Enrich": [ "FromLogContext" ]
+}
+```
+
+---
+
+## 4. UseSerilogRequestLogging
+
+```csharp
+app.UseSerilogRequestLogging();
+```
+
+Replaces the verbose default host request logs with one structured line per request:
+```
+[09:31:20 INF] HTTP GET /accounts/1 responded 200 in 3.4ms
+```
+
+---
+
+## Project Structure (new / changed files)
+
+```
+Lesson/
+  Controllers/
+    SerilogDemoController.cs   NEW  GET /serilog-demo/accounts/{id},
+                                    GET /serilog-demo/enrich
+  Program.cs                   MOD  UseSerilog(), AddHttpContextAccessor(),
+                                    UseSerilogRequestLogging()
+  appsettings.json              MOD  "Serilog" configuration section added
+Lesson.Tests/
+  SerilogDemoTests.cs          NEW  4 integration tests
+```
+
+---
+
+## Tests
+
+```bash
+dotnet test --filter "FullyQualifiedName~SerilogDemoTests"
+# 4 tests — all pass
+```
+
+---
+
+## Exercises
+
+1. Add a `WriteTo.Seq("http://localhost:5341")` sink and run Seq locally (`docker run --rm -e ACCEPT_EULAS=Y -p 5341:80 datalust/seq`) — query `CorrelationId = "test-cid-123"` in the UI.
+2. Create an enricher that automatically reads `X-Correlation-ID` from the HTTP context and pushes it via `LogContext` for every request, so individual controllers don't have to do it themselves.
+3. Override the `UseSerilogRequestLogging` message template to include `{UserName}` from the JWT claims.
+
 
 > **Branch:** `lesson/15-logging/a-basic`
 > **Prerequisites:** Lesson 14-C (caching)
